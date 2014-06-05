@@ -3,6 +3,7 @@ from collections import namedtuple
 
 SimpleTask = namedtuple('SimpleTask', 'ID, optionCount, trueOption')
 Answer = namedtuple('Answer', 'wokerID, taskID, choice')
+SimpleAnswer = namedtuple('SimpleAnswer', 'taskID, choice')
 
 def toCallable(obj):
     try:

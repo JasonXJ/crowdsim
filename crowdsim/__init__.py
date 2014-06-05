@@ -1,3 +1,3 @@
 #!/usr/bin/env python3
 
-from . import common, generator, solver
+from . import common, generator, solver, deducer
