@@ -18,19 +18,14 @@ class SimpleGenerator:
             self.trueOptionGenerator = self.defaultTrueOptionGenerator
         else:
             self.trueOptionGenerator = toCallable(trueOption)
-        self.ongoingTaskID = 0
+
+        self.taskBuf = []
+        for taskID in range(self.taskCount):
+            self.ongoingOptionCount = self.optionCountGenerator(taskID) # for defaultTrueOptionGenerator()
+            self.taskBuf.append(SimpleTask(taskID, self.ongoingOptionCount, self.trueOptionGenerator(taskID)))
 
     def defaultTrueOptionGenerator(self, x):
         return random.randrange(self.ongoingOptionCount)
 
     def __iter__(self):
-        return self
-
-    def __next__(self):
-        if self.ongoingTaskID < self.taskCount:
-            self.ongoingOptionCount = self.optionCountGenerator(self)
-            task = SimpleTask(self.ongoingTaskID, self.ongoingOptionCount, self.trueOptionGenerator(self))
-            self.ongoingTaskID += 1
-            return task
-        else:
-            raise StopIteration
+        return iter(self.taskBuf)
