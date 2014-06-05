@@ -4,7 +4,7 @@ from .common import *
 
 class PSolver:
     """Solve tasks by choosing a random worker and assigning answer based on his accuracy"""
-    def __init__(self, workerCount, accuracyFunc, assignWeights=None, duplicate=1):
+    def __init__(self, workerCount, accuracyFunc, assignWeights=None, duplicate=1, cache = False):
         """Init...
 
         Parameter:
@@ -14,6 +14,10 @@ class PSolver:
         self.workerCount = workerCount
         self.accuracyFunc = accuracyFunc
         self.duplicate = duplicate
+        if cache:
+            self.cache = []
+        else:
+            self.cache = None
         if assignWeights is None:
             self.randomWorker = self.randomWorkerDirectly
             self.searchRange = workerCount
@@ -50,7 +54,10 @@ class PSolver:
                 choice = self.ongoingTask.optionCount - 1
         else: # right answer
             choice = self.ongoingTask.trueOption
-        return Answer(workerID, self.ongoingTask.ID, choice)
+        a = Answer(workerID, self.ongoingTask.ID, choice)
+        if self.cache is not None:
+            self.cache.append(a)
+        return a
     def randomWorkerDirectly(self):
         return random.randrange(self.searchRange)
     def randomWorkerWithWeight(self):

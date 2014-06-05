@@ -4,7 +4,7 @@ from .common import *
 
 class SimpleGenerator:
     """Class to generate some SimpleHIT """
-    def __init__(self, taskCount, optionCount, trueOption=None):
+    def __init__(self, taskCount, optionCount, trueOption=None, cache = False):
         """Init...
 
         Parameter:
@@ -19,18 +19,30 @@ class SimpleGenerator:
         else:
             self.trueOptionGenerator = toCallable(trueOption)
 
-        self.taskList = []
-        for taskID in range(self.taskCount):
-            self.ongoingOptionCount = self.optionCountGenerator(taskID) # for defaultTrueOptionGenerator()
-            self.taskList.append(SimpleTask(taskID, self.ongoingOptionCount, self.trueOptionGenerator(taskID)))
+        if cache:
+            self.cache = []
+        else:
+            self.cache = None
+
+        self.ongoingTaskID = 0
 
     def defaultTrueOptionGenerator(self, x):
         return random.randrange(self.ongoingOptionCount)
 
     def __iter__(self):
-        return iter(self.taskList)
-    
+        return self
+
+    def __next__(self):
+        if self.ongoingTaskID < self.taskCount:
+            self.ongoingOptionCount = self.optionCountGenerator(self.ongoingTaskID) # for defaultTrueOptionGenerator()
+            task = SimpleTask(self.ongoingTaskID, self.ongoingOptionCount, self.trueOptionGenerator(self.ongoingTaskID))
+            self.ongoingTaskID += 1
+            if self.cache is not None:
+                self.cache.append(task)
+            return task
+        else:
+            raise StopIteration
     def getOptionCount(self, taskID):
-        return self.taskList[taskID].optionCount
+        return self.cache[taskID].optionCount
     def getTrueOption(self, taskID):
-        return self.taskList[taskID].trueOption
+        return self.cache[taskID].trueOption
