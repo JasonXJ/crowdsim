@@ -29,3 +29,8 @@ class SimpleGenerator:
 
     def __iter__(self):
         return iter(self.taskList)
+    
+    def getOptionCount(self, taskID):
+        return self.taskList[taskID].optionCount
+    def getTrueOption(self, taskID):
+        return self.taskList[taskID].trueOption
