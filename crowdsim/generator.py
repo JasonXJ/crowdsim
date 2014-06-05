@@ -5,7 +5,7 @@ from .common import *
 class BaseGenerator:
     pass
 
-class SimpleGenerator(BaseGenerator):
+class GeneralGenerator(BaseGenerator):
     """Class to generate some SimpleHIT """
     def __init__(self, taskCount, optionCount, trueOption=None, cache = True):
         """Init...
