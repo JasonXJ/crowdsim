@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 from .common import *
 
-class MajorityVote:
+class BaseDeducer:
+    pass
+
+class MajorityVote(BaseDeducer):
     def __init__(cache = True):
         # actually, MajorityVote always caches in spite of the parameter
+        pass
+    def cacheAll(self):
         pass
     def link(self, generator, solver):
         self.taskDict = {}

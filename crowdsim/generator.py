@@ -2,9 +2,12 @@
 import random
 from .common import *
 
-class SimpleGenerator:
+class BaseGenerator:
+    pass
+
+class SimpleGenerator(BaseGenerator):
     """Class to generate some SimpleHIT """
-    def __init__(self, taskCount, optionCount, trueOption=None, cache = False):
+    def __init__(self, taskCount, optionCount, trueOption=None, cache = True):
         """Init...
 
         Parameter:
@@ -21,6 +24,7 @@ class SimpleGenerator:
 
         if cache:
             self.cache = []
+            self.cacheAll = self._cacheAll
         else:
             self.cache = None
 
@@ -28,6 +32,10 @@ class SimpleGenerator:
 
     def defaultTrueOptionGenerator(self, x):
         return random.randrange(self.ongoingOptionCount)
+
+    def _cacheAll(self):
+        for x in self:
+            pass
 
     def __iter__(self):
         return self

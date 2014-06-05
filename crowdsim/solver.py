@@ -2,9 +2,12 @@
 import random, bisect
 from .common import *
 
-class PSolver:
+class BaseSolver:
+    pass
+
+class PSolver(BaseSolver):
     """Solve tasks by choosing a random worker and assigning answer based on his accuracy"""
-    def __init__(self, workerCount, accuracyFunc, assignWeights=None, duplicate=1, cache = False):
+    def __init__(self, workerCount, accuracyFunc, assignWeights=None, duplicate=1, cache = True):
         """Init...
 
         Parameter:
@@ -16,6 +19,7 @@ class PSolver:
         self.duplicate = duplicate
         if cache:
             self.cache = []
+            self.cacheAll = self._cacheAll
         else:
             self.cache = None
         if assignWeights is None:
@@ -32,6 +36,9 @@ class PSolver:
             except StopIteration:
                 pass
             self.searchRange = self.workerRange[-1]
+    def _cacheAll(self):
+        for x in self:
+            pass
     def link(self, g):
         self.lIter = iter(g)
         self.duplicateIndex = self.duplicate
