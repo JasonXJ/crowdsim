@@ -7,20 +7,20 @@ class BaseGenerator:
 
 class GeneralGenerator(BaseGenerator):
     """Class to generate some SimpleHIT """
-    def __init__(self, taskCount, optionCount, trueOption=None, cache = True):
+    def __init__(self, taskCount, labelCount, trueLabel=None, cache = True):
         """Init...
 
         Parameter:
             taskCount: number of task to generate
-            optionCount: can be a callable/iterable object or just an int
-            trueOption: Can be None, callable/iterable object or int. If is None, the trueOptions are assigned randomly.
+            labelCount: can be a callable/iterable object or just an int
+            trueLabel: Can be None, callable/iterable object or int. If is None, the trueOptions are assigned randomly.
         """
         self.taskCount = taskCount
-        self.optionCountGenerator = toCallable(optionCount)
-        if trueOption is None:
+        self.optionCountGenerator = toCallable(labelCount)
+        if trueLabel is None:
             self.trueOptionGenerator = self.defaultTrueOptionGenerator
         else:
-            self.trueOptionGenerator = toCallable(trueOption)
+            self.trueOptionGenerator = toCallable(trueLabel)
 
         if cache:
             self.cache = []
@@ -51,6 +51,6 @@ class GeneralGenerator(BaseGenerator):
         else:
             raise StopIteration
     def getOptionCount(self, taskID):
-        return self.cache[taskID].optionCount
+        return self.cache[taskID].labelCount
     def getTrueOption(self, taskID):
-        return self.cache[taskID].trueOption
+        return self.cache[taskID].trueLabel

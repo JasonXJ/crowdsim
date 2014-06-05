@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 from collections import namedtuple
 
-SimpleTask = namedtuple('SimpleTask', 'ID, optionCount, trueOption')
-Answer = namedtuple('Answer', 'wokerID, taskID, choice')
-SimpleAnswer = namedtuple('SimpleAnswer', 'taskID, choice')
+SimpleTask = namedtuple('SimpleTask', 'ID, labelCount, trueLabel')
+Answer = namedtuple('Answer', 'wokerID, taskID, label')
+SimpleAnswer = namedtuple('SimpleAnswer', 'taskID, label')
 
 def toCallable(obj):
     try:

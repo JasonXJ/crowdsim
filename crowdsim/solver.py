@@ -56,12 +56,12 @@ class PSolver(BaseSolver):
             workerID = self.randomWorker()
         self.usedWorker.append(workerID)
         if random.random() > self.accuracyFunc(workerID): # wrong answer
-            choice = random.randrange(self.ongoingTask.optionCount - 1)
-            if choice == self.ongoingTask.trueOption:
-                choice = self.ongoingTask.optionCount - 1
+            label = random.randrange(self.ongoingTask.labelCount - 1)
+            if label == self.ongoingTask.trueLabel:
+                label = self.ongoingTask.labelCount - 1
         else: # right answer
-            choice = self.ongoingTask.trueOption
-        a = Answer(workerID, self.ongoingTask.ID, choice)
+            label = self.ongoingTask.trueLabel
+        a = Answer(workerID, self.ongoingTask.ID, label)
         if self.cache is not None:
             self.cache.append(a)
         return a

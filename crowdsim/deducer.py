@@ -15,7 +15,7 @@ class MajorityVote(BaseDeducer):
         for a in solver:
             if a.taskID not in self.taskDict:
                 self.taskDict[a.taskID] = [0 for x in range(generator.getOptionCount(a.taskID))]
-            self.taskDict[a.taskID][a.choice] += 1
+            self.taskDict[a.taskID][a.label] += 1
         self.cache = []
         for ID in sorted(self.taskDict.keys()):
             mValue = -1

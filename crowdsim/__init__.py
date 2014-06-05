@@ -23,10 +23,10 @@ def evaluate(tasks, answers, strict = False):
         if len(taskSet) != 0:
             raise ValueError(errString)
 
-    taskDict = {t.ID : t.trueOption for t in tasks}
+    taskDict = {t.ID : t.trueLabel for t in tasks}
     count = 0
     for a in answers:
-        if a.choice == taskDict[a.taskID]:
+        if a.label == taskDict[a.taskID]:
             count += 1
     return count / len(answers)
 
