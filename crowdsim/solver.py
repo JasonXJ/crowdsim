@@ -7,7 +7,7 @@ class BaseSolver:
 
 class PSolver(BaseSolver):
     """Solve tasks by choosing a random worker and assigning answer based on his accuracy"""
-    def __init__(self, workerCount, accuracyFunc, assignWeights=None, duplicate=1, cache = True):
+    def __init__(self, workerCount, accuracyFunc, assignWeights=None, duplicate=1):
         """Init...
 
         Parameter:
@@ -17,56 +17,33 @@ class PSolver(BaseSolver):
         self.workerCount = workerCount
         self.accuracyFunc = accuracyFunc
         self.duplicate = duplicate
-        if cache:
-            self.cache = []
-            self.cacheAll = self._cacheAll
-        else:
-            self.cache = None
         if assignWeights is None:
-            self.randomWorker = self.randomWorkerDirectly
-            self.searchRange = workerCount
+            self.randomWorkerGenerator = self.randomWorkerDirectly
         else:
-            self.randomWorker = self.randomWorkerWithWeight
-            # see randomWorkerWithWeight() for the explaination of workerRange
-            it = iter(assignWeights)
-            self.workerRange = [next(it)]
-            try:
-                while True:
-                    self.workerRange.append(self.workerRange[-1] + next(it))
-            except StopIteration:
-                pass
-            self.searchRange = self.workerRange[-1]
-    def _cacheAll(self):
-        for x in self:
-            pass
+            self.randomWorkerGenerator = WeightedRandom(assignWeights)
+
     def link(self, g):
-        self.lIter = iter(g)
-        self.duplicateIndex = self.duplicate
+        self.generator = g
+        self.answerList = []
+        for task in g:
+            usedWorker = []
+            for dIndex in range(self.duplicate):
+                workerId = self.randomWorkerGenerator()
+                while workerId in usedWorker:
+                    # XXX rerun randomWorkerGenerator() may be a problem if "workercount >> duplicate" is not satisfied
+                    workerId = self.randomWorkerGenerator()
+                usedWorker.append(workerId)
+                if random.random() > self.accuracyFunc(workerId): # wrong answer
+                    label = random.randrange(task.labelCount - 1)
+                    if label == task.trueLabel:
+                        label = task.labelCount - 1
+                else: # right answer
+                    label = task.trueLabel
+                a = Answer(workerId, task.id, label)
+                self.answerList.append(a)
+
     def __iter__(self):
-        return self
-    def __next__(self):
-        if self.duplicateIndex == self.duplicate:
-            self.duplicateIndex = 0
-            self.ongoingTask = next(self.lIter)
-            self.usedWorker = []
-        self.duplicateIndex += 1
-        workerID = self.randomWorker()
-        while workerID in self.usedWorker:
-            # XXX rerun randomWorker() may be a problem if "workercount >> duplicate" is not satisfied
-            workerID = self.randomWorker()
-        self.usedWorker.append(workerID)
-        if random.random() > self.accuracyFunc(workerID): # wrong answer
-            label = random.randrange(self.ongoingTask.labelCount - 1)
-            if label == self.ongoingTask.trueLabel:
-                label = self.ongoingTask.labelCount - 1
-        else: # right answer
-            label = self.ongoingTask.trueLabel
-        a = Answer(workerID, self.ongoingTask.ID, label)
-        if self.cache is not None:
-            self.cache.append(a)
-        return a
+        return iter(self.answerList)
+
     def randomWorkerDirectly(self):
-        return random.randrange(self.searchRange)
-    def randomWorkerWithWeight(self):
-        # Given a random number x, if workerRange[i-1] <= x < workerRange[i], then return i
-        return bisect.bisect_right(self.workerRange, random.randrange(self.searchRange))
+        return random.randrange(self.workerCount)

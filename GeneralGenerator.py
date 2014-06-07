@@ -21,6 +21,5 @@ for x in range(10):
     l.append((c,t))
 
 g3 = GeneralGenerator(10, lambda x: l[x][0], lambda x: l[x][1])
-g3.cacheAll()
-for x in g3.cache:
+for x in g3.id_to_task:
     print(x)

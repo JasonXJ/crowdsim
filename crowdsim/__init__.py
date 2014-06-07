@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from . import common, generator, solver, deducer
+from . import common, generator, solver, deducer, assigner, worker
 
 def evaluate(tasks, answers, strict = False):
     """evaluate the answers
@@ -12,21 +12,21 @@ def evaluate(tasks, answers, strict = False):
     if strict:
         taskSet = set()
         for t in tasks:
-            if t.ID in taskSet:
+            if t.id in taskSet:
                 raise ValueError('Duplicated tasks')
-            taskSet.add(t.ID)
+            taskSet.add(t.id)
         errString = 'tasks and answers do not match'
         for a in answers:
-            if a.taskID not in taskSet:
+            if a.taskId not in taskSet:
                 raise ValueError(errString)
-            taskSet.remove(a.taskID)
+            taskSet.remove(a.taskId)
         if len(taskSet) != 0:
             raise ValueError(errString)
 
-    taskDict = {t.ID : t.trueLabel for t in tasks}
+    taskDict = {t.id : t.trueLabel for t in tasks}
     count = 0
     for a in answers:
-        if a.label == taskDict[a.taskID]:
+        if a.label == taskDict[a.taskId]:
             count += 1
     return count / len(answers)
 

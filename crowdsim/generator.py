@@ -7,50 +7,30 @@ class BaseGenerator:
 
 class GeneralGenerator(BaseGenerator):
     """Class to generate some SimpleHIT """
-    def __init__(self, taskCount, labelCount, trueLabel=None, cache = True):
+    def __init__(self, taskCount, labelCount, trueLabel=None):
         """Init...
 
         Parameter:
             taskCount: number of task to generate
             labelCount: can be a callable/iterable object or just an int
-            trueLabel: Can be None, callable/iterable object or int. If is None, the trueOptions are assigned randomly.
+            trueLabel: Can be None, callable/iterable object or int. If is None, the trueLabels are assigned randomly.
         """
         self.taskCount = taskCount
-        self.optionCountGenerator = toCallable(labelCount)
+        self.labelCountGenerator = toCallable(labelCount)
         if trueLabel is None:
-            self.trueOptionGenerator = self.defaultTrueOptionGenerator
+            self.trueLabelGenerator = self.defaultTrueLabelGenerator
         else:
-            self.trueOptionGenerator = toCallable(trueLabel)
+            self.trueLabelGenerator = toCallable(trueLabel)
 
-        if cache:
-            self.cache = []
-            self.cacheAll = self._cacheAll
-        else:
-            self.cache = None
+        self.id_to_task = []
+        self.taskList = self.id_to_task
+        for self.ongoingTaskId in range(self.taskCount):
+            self.ongoingLabelCount = self.labelCountGenerator(self.ongoingTaskId) # for defaultTrueLabelGenerator()
+            task = SimpleTask(self.ongoingTaskId, self.ongoingLabelCount, self.trueLabelGenerator(self.ongoingTaskId))
+            self.id_to_task.append(task)
 
-        self.ongoingTaskID = 0
-
-    def defaultTrueOptionGenerator(self, x):
-        return random.randrange(self.ongoingOptionCount)
-
-    def _cacheAll(self):
-        for x in self:
-            pass
+    def defaultTrueLabelGenerator(self, x):
+        return random.randrange(self.ongoingLabelCount)
 
     def __iter__(self):
-        return self
-
-    def __next__(self):
-        if self.ongoingTaskID < self.taskCount:
-            self.ongoingOptionCount = self.optionCountGenerator(self.ongoingTaskID) # for defaultTrueOptionGenerator()
-            task = SimpleTask(self.ongoingTaskID, self.ongoingOptionCount, self.trueOptionGenerator(self.ongoingTaskID))
-            self.ongoingTaskID += 1
-            if self.cache is not None:
-                self.cache.append(task)
-            return task
-        else:
-            raise StopIteration
-    def getOptionCount(self, taskID):
-        return self.cache[taskID].labelCount
-    def getTrueOption(self, taskID):
-        return self.cache[taskID].trueLabel
+        return iter(self.id_to_task)
