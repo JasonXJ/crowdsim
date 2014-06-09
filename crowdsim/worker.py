@@ -8,6 +8,7 @@ def solveTask(task, workerAccuracy):
             label = task.labelCount - 1
     else: # right answer
         label = task.trueLabel
+    return label
 
 class BaseWorker:
     pass
@@ -36,7 +37,7 @@ class PWorker(BaseWorker):
             except EOFError:
                 break
             if task != None: # assigner may return None because no task for the particular worker
-                self.answerList.append(Answer(workerId, task.id, solveTask(task, accuracyFunc(workerId))))
+                self.answerList.append(Answer(workerId, task, solveTask(task, self.accuracyFunc(workerId))))
     def __iter__(self):
         return iter(self.answerList)
     def randomWorkerDirectly(self):

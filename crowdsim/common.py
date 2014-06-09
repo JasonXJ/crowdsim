@@ -2,8 +2,8 @@
 from collections import namedtuple
 
 SimpleTask = namedtuple('SimpleTask', 'id, labelCount, trueLabel')
-Answer = namedtuple('Answer', 'wokerId, taskId, label')
-SimpleAnswer = namedtuple('SimpleAnswer', 'taskId, label')
+Answer = namedtuple('Answer', 'wokerId, task, label')
+SimpleAnswer = namedtuple('SimpleAnswer', 'task, label')
 
 def toCallable(obj):
     try:

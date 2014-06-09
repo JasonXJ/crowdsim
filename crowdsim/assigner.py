@@ -8,6 +8,7 @@ class SimpleAssigner(BaseAssigner):
         self.duplicate = duplicate
         pass
     def link(self, generator):
+        self.generator = generator
         self.task_to_workers = {task : [] for task in generator}
     def get(self, workerId):
         if len(self.task_to_workers) == 0:
