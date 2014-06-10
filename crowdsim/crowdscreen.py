@@ -112,7 +112,7 @@ class ladderGenerator:
             delta_x -= 1 # the last segments must be horizontal
         else:
             assert(self.y == 0)
-            delta_y -= 1 # the last segments must be horizontal
+            delta_y -= 1 # the last segments must be vertical
 
         assert(delta_y >= 0 and delta_x >= 0)
         self.subladderLength = delta_x + delta_y
