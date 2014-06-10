@@ -98,7 +98,16 @@ class ladderGenerator:
         if ladderType == self.UPPER_LADDER:
             self.isUpperLadder = True
 
-    def reset(self, startPoint, decisionPoint):
+    def reset(self, startPoint, decisionPoint, restrictPoints = None):
+        """if restrictPoints is not None, then the ladder will not contain points in it."""
+
+        if restrictPoints:
+            self.restrictPoints = set(restrictPoints)
+            assert(startPoint not in self.restrictPoints
+                    and decisionPoint not in self.restrictPoints)
+        else:
+            self.restrictPoints = set()
+
         self.x = startPoint[0]
         self.y = startPoint[1]
         self.dx = decisionPoint[0]
@@ -121,19 +130,23 @@ class ladderGenerator:
     def __iter__(self):
         return self
     def __next__(self):
-        goUpSteps = next(self.it)
-        r = [(self.x, self.y)]
-        for x in range(self.subladderLength):
-            if x in goUpSteps:
-                r.append((r[-1][0], r[-1][1] + 1))
+        while True:
+            goUpSteps = next(self.it)
+            r = [(self.x, self.y)]
+            for x in range(self.subladderLength):
+                if x in goUpSteps:
+                    r.append((r[-1][0], r[-1][1] + 1))
+                else:
+                    r.append((r[-1][0] + 1, r[-1][1]))
+                if r[-1] in self.restrictPoints:
+                    break
             else:
-                r.append((r[-1][0] + 1, r[-1][1]))
-        if self.isUpperLadder:
-            assert(r[-1][0] + 1 == self.dx and r[-1][1] == self.dy)
-        else:
-            assert(r[-1][0] == self.dx and r[-1][1] + 1 == self.dy)
-        r.append((self.dx, self.dy))
-        return r
+                if self.isUpperLadder:
+                    assert(r[-1][0] + 1 == self.dx and r[-1][1] == self.dy)
+                else:
+                    assert(r[-1][0] == self.dx and r[-1][1] + 1 == self.dy)
+                r.append((self.dx, self.dy))
+                return r
 
 #### test class stragety: see crowdscreen paper figure 1(c)
 # s = strategy(5, 0.5, 0.2, 0.1)
@@ -149,13 +162,18 @@ class ladderGenerator:
 # print(s.e)
 # print(s.c)
 
-#### test ladderGenerator
+### test ladderGenerator
 lg = ladderGenerator(3, ladderGenerator.UPPER_LADDER)
-lg.reset((0, 0), (3, 3))
+lg.reset((0, 1), (3, 3))
 for x in lg:
     print(x)
 print('--------------------')
 lg = ladderGenerator(3, ladderGenerator.LOWER_LADDER)
-lg.reset((0, 0), (3, 3))
+lg.reset((1, 0), (3, 3))
+for x in lg:
+    print(x)
+print('--------------------')
+lg = ladderGenerator(3, ladderGenerator.LOWER_LADDER)
+lg.reset((1, 0), (3, 3), [(2,2), (3, 0)])
 for x in lg:
     print(x)
