@@ -197,7 +197,7 @@ def getBestLadderStrategy(t, m, s, e0, e1):
     upper = ladderGenerator(ladderGenerator.UPPER_LADDER)
     lower = ladderGenerator(ladderGenerator.LOWER_LADDER)
     for x in range(1, m+1):
-        for y in range(1, m+1):
+        for y in range(1, m-x+1):
             for decX in range(x, m+1):
                 for decY in range(y, m+1):
                     upper.reset((0, y), (decX, decY))
@@ -224,6 +224,17 @@ def getBestLadderStrategy(t, m, s, e0, e1):
                                         bestStrategy = tempStrategy
     return bestStrategy
 
+def calcLadderShapeCount(m):
+    from math import factorial
+    def nCr(n, r):
+        return factorial(n) / factorial(r) / factorial(n-r)
+    count = 0
+    for x in range(1, m+1):
+        for y in range(1, m-x+1):
+            for decX in range(x, m+1):
+                for decY in range(y, m+1):
+                    count += nCr(decX+decY-y, decX) * nCr(decX+decY-x, decY)
+    return count
 
 #### test class stragety: see crowdscreen paper figure 1(c)
 #s = strategy(5, 0.5, 0.2, 0.1)
@@ -266,3 +277,6 @@ def getBestLadderStrategy(t, m, s, e0, e1):
 #print(getBestLadderStrategy(0.2, 3, 0.5, 0.2, 0.1))
 ## 
 #print(getBestLadderStrategy(0.2, 7, 0.5, 0.2, 0.1))
+
+for m in range(3, 14):
+    print('m: {}\t shape count: {}'.format(m, calcLadderShapeCount(m)))
