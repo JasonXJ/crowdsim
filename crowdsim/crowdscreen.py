@@ -197,9 +197,9 @@ def getBestLadderStrategy(t, m, s, e0, e1):
     upper = ladderGenerator(ladderGenerator.UPPER_LADDER)
     lower = ladderGenerator(ladderGenerator.LOWER_LADDER)
     for x in range(1, m+1):
-        for y in range(1, m-x+1):
+        for y in range(1, m-x+2): # x + y <= m + 1
             for decX in range(x, m+1):
-                for decY in range(y, m+1):
+                for decY in range(y, m - decX + 2): # decX + decY <= m + 1
                     upper.reset((0, y), (decX, decY))
                     for upperLadder in upper:
                         # restrict lower ladder so that it won't overlap upper ladder
@@ -230,9 +230,9 @@ def calcLadderShapeCount(m):
         return factorial(n) / factorial(r) / factorial(n-r)
     count = 0
     for x in range(1, m+1):
-        for y in range(1, m-x+1):
+        for y in range(1, m-x+2):
             for decX in range(x, m+1):
-                for decY in range(y, m+1):
+                for decY in range(y, m - decX + 2):
                     count += nCr(decX+decY-y, decX) * nCr(decX+decY-x, decY)
     return count
 
@@ -276,7 +276,7 @@ def calcLadderShapeCount(m):
 ## the follow case is the example of figure 1(c)
 #print(getBestLadderStrategy(0.2, 3, 0.5, 0.2, 0.1))
 ## 
-#print(getBestLadderStrategy(0.2, 7, 0.5, 0.2, 0.1))
+#print(getBestLadderStrategy(0.2, 10, 0.5, 0.2, 0.1))
 
 for m in range(3, 14):
     print('m: {}\t shape count: {}'.format(m, calcLadderShapeCount(m)))
