@@ -278,5 +278,5 @@ def calcLadderShapeCount(m):
 ## 
 #print(getBestLadderStrategy(0.2, 10, 0.5, 0.2, 0.1))
 
-for m in range(3, 14):
-    print('m: {}\t shape count: {}'.format(m, calcLadderShapeCount(m)))
+#for m in range(3, 14):
+#    print('m: {}\t shape count: {}'.format(m, calcLadderShapeCount(m)))
