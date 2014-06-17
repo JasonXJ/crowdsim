@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from . import common, generator, solver, deducer, assigner, worker
+from . import common, generator, deducer, assigner, worker
 
 def evaluate(answers, strict = False):
     """evaluate the answers
