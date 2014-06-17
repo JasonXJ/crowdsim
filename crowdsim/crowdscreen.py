@@ -16,10 +16,21 @@ def printGrid(grid):
     range_x = len(grid)
     range_y = len(grid[0])
     for y in range(range_y - 1, -1, -1):
+        print('{:2d}|'.format(y), end = '')
         for x in range(0, range_x):
-            print('{}'.format(grid[x][y]), end = '\t')
+            if grid[x][y] == -1:
+                print('   ', end = '')
+            else:
+                print('{:3d}'.format(grid[x][y]), end = '')
         print()
-    print('0 -----> x')
+    print('  ---0', end = '')
+    for x in range(1, range_x):
+        print('{:->3d}'.format(x), end = '')
+    print('---> x')
+
+def printStrategy(s):
+    printGrid(s.grid)
+    print('e: {:.3f}, c: {:.3f}'.format(s.e, s.c))
 
 class strategy:
     def __init__(self, m, s, e0, e1, gridInitValue = CONN):
@@ -98,8 +109,6 @@ class strategy:
                             p1_d = self.p1[x][y-1]
                         self.p0[x][y] = p0_l*(1 - self.e0)+ p0_d*self.e0
                         self.p1[x][y] = p1_l*self.e1 + p1_d*(1-self.e1)
-    def __str__(self):
-        return 'e: {:.3f}, c: {:.3f}'.format(self.e, self.c)
 
 import itertools
 class ladderGenerator:
@@ -244,8 +253,7 @@ def calcLadderShapeCount(m):
 #
 #s.calc()
 #print(s.eEach)
-#print(s.e)
-#print(s.c)
+#printStrategy(s)
 
 #### test ladderGenerator
 #lg = ladderGenerator(ladderGenerator.UPPER_LADDER)
@@ -271,12 +279,12 @@ def calcLadderShapeCount(m):
 #    print(x)
 
 #### getBestLadderStrategy test
-#print(getBestLadderStrategy(0.2, 0, 0.8, 0.2, 0.2))
-#print(getBestLadderStrategy(0.2, 4, 0.8, 0.2, 0.2))
-## the follow case is the example of figure 1(c)
-#print(getBestLadderStrategy(0.2, 3, 0.5, 0.2, 0.1))
+#printStrategy(getBestLadderStrategy(0.2, 0, 0.8, 0.2, 0.2))
+#printStrategy(getBestLadderStrategy(0.2, 4, 0.8, 0.2, 0.2))
+# the follow case is the example of figure 1(c)
+#printStrategy(getBestLadderStrategy(0.120, 3, 0.5, 0.2, 0.1))
 ## 
-#print(getBestLadderStrategy(0.2, 10, 0.5, 0.2, 0.1))
+#printStrategy(getBestLadderStrategy(0.2, 10, 0.5, 0.2, 0.1))
 
 #for m in range(3, 14):
 #    print('m: {}\t shape count: {}'.format(m, calcLadderShapeCount(m)))
