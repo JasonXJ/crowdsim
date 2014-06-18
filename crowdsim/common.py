@@ -4,6 +4,8 @@ from collections import namedtuple
 SimpleTask = namedtuple('SimpleTask', 'id, labelCount, trueLabel')
 Answer = namedtuple('Answer', 'wokerId, task, label')
 SimpleAnswer = namedtuple('SimpleAnswer', 'task, label')
+SimpleAnswerWithLabelCount = namedtuple('SimpleAnswerWithLableCount', 'task, label, yesCount, noCount')
+BinaryTaskMetrics = namedtuple('BinaryTaskMetrics', 'precision, recall, f1, accuracy')
 
 def toCallable(obj):
     try:
@@ -51,3 +53,18 @@ def maxIndex(l):
             mv = v
             mi = i
     return mi
+
+# Exceptions
+class FailToGetStrategy(Exception):
+    pass
+class GeneratorNotCompatible(Exception):
+    pass
+class StrategyStopAtOrigin(Exception):
+    pass
+class RunOutOfActiveTask(Exception):
+    # there is no active task currently, but there are still some inactive
+    # tasks
+    pass
+class RunOutOfAllTask(Exception):
+    # there is no task at all
+    pass

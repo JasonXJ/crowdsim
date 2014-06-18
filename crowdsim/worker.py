@@ -9,6 +9,16 @@ def solveTask(task, workerAccuracy):
     else: # right answer
         label = task.trueLabel
     return label
+def solveTask2(task, pFalsePositive, pFalseNegative):
+    assert(task.labelCount == 2)
+    if task.trueLabel == 0:
+        p = pFalsePositive
+    else:
+        p = pFalseNegative
+    if random.random() > p:
+        return task.trueLabel
+    else:
+        return 1 - task.trueLabel
 
 class BaseWorker:
     pass
@@ -23,6 +33,7 @@ class PWorker(BaseWorker):
         """
         self.workerCount = workerCount
         self.accuracyFunc = accuracyFunc
+        self.cost = 0
         if assignWeights is None:
             self.randomWorkerGenerator = self.randomWorkerDirectly
         else:
@@ -33,12 +44,27 @@ class PWorker(BaseWorker):
         while True:
             workerId = self.randomWorkerGenerator()
             try:
-                task = assigner.get(workerId)
-            except EOFError:
+                task = assigner.assign(workerId)
+            except RunOutOfAllTask:
                 break
             if task != None: # assigner may return None because no task for the particular worker
-                self.answerList.append(Answer(workerId, task, solveTask(task, self.accuracyFunc(workerId))))
+                answer = self._solve(task, workerId)
+                self.answerList.append(Answer(workerId, task, answer))
+                self.assigner.update(workerId, task, answer)
+                self.cost += 1
     def __iter__(self):
         return iter(self.answerList)
     def randomWorkerDirectly(self):
         return random.randrange(self.workerCount)
+    def _solve(self, task, workerId):
+        return solveTask(task, self.accuracyFunc(workerId))
+
+class PWorker2(PWorker):
+    def __init__(self, workerCount, accuracyFunc, assignWeights = None):
+        """Identical to PWorker except the return values of accuracyFunc.
+        
+        accuracyFunc should return a tuple (false positive rate, false negetive rate)
+        """
+        PWorker.__init__(self, workerCount, accuracyFunc, assignWeights)
+    def _solve(self, task, workerId):
+        return solveTask2(task, *self.accuracyFunc(workerId))

@@ -17,3 +17,11 @@ class MajorityVote(BaseDeducer):
             self.answerList.append(SimpleAnswer(task, maxIndex(self.taskDict[task])))
     def __iter__(self):
         return iter(self.answerList)
+
+class assignerDeducer(BaseDeducer):
+    """Use when the assigner deduces true answer by itself."""
+    def link(self, worker):
+        self.worker = worker
+        self.answerList = worker.assigner.answerList
+    def __iter__(self):
+        return iter(self.answerList)
