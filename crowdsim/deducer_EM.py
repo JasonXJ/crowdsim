@@ -15,9 +15,9 @@ class EM:
         self.label_set = [0, 1]
         self.id2Task = {}
         for a in worker:
-            self.worker_example_label_set.append((a.wokerId, a.task.id, a.label))
-            self.example_to_worker_label.setdefault(a.task.id, []).append((a.wokerId, a.label))
-            self.worker_to_example_label.setdefault(a.wokerId, []).append((a.task.id, a.label))
+            self.worker_example_label_set.append((a.workerId, a.task.id, a.label))
+            self.example_to_worker_label.setdefault(a.task.id, []).append((a.workerId, a.label))
+            self.worker_to_example_label.setdefault(a.workerId, []).append((a.task.id, a.label))
             self.id2Task[a.task.id] = a.task
         self.EstimateMaximize()
 
