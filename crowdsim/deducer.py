@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from .common import *
+from .deducer_EM import *
 
 class BaseDeducer:
     pass
