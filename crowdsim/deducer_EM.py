@@ -2,8 +2,9 @@
 #DateTime: 2011-11-03 13:43
 #Function: Implement the get-another-label algorithm
 from . import common
+from .deducer import BaseDeducer
 
-class EM:
+class EM(BaseDeducer):
     def __init__(self, iterTimes):
         self.iterTimes = iterTimes
 

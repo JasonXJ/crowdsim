@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 from .common import *
-from .deducer_EM import *
 
 class BaseDeducer:
     pass
@@ -26,3 +25,6 @@ class assignerDeducer(BaseDeducer):
         self.answerList = worker.assigner.answerList
     def __iter__(self):
         return iter(self.answerList)
+
+# put this import last
+from .deducer_EM import *
