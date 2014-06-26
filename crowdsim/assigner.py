@@ -64,52 +64,134 @@ class SimpleAssigner(BaseAssigner):
         self.task_to_assignInfo[task].abandon(workerId)
 
 from . import crowdscreen
-# XXX cannot assign a task again until the answer is received.
-class StrategyAssigner(BaseAssigner):
+class BaseStrategyAssigner(BaseAssigner):
     def __init__(self, strategyGrid):
         self.strategyGrid = strategyGrid
         if self.strategyGrid[0][0] == crowdscreen.PASS or self.strategyGrid[0][0] == crowdscreen.FAIL:
             raise StrategyStopAtOrigin(self.strategyGrid[0][0])
+        self.stepsToNearestTermPoint = crowdscreen.calcStepsToNearestTermPoint(strategyGrid)
+
     def link(self, generator):
         self.generator = generator
-        self.activeTasks = set()
-        self.task_to_assignInfo_ynCount = dict()
-        for task in generator:
+        self.answerList = [] # final answers
+
+        self.activeTasks = set(generator)
+        for task in self.activeTasks:
             if task.labelCount != 2:
                 raise ValueError('Only support 2-label tasks')
-            self.activeTasks.add(task)
-            self.task_to_assignInfo_ynCount[task] = [AssignInfo(), 0, 0]
-        self.answerList = [] # final answers
+
+class StrategyAssigner(BaseStrategyAssigner):
+    def link(self, generator):
+        BaseStrategyAssigner.link(self, generator)
+        self.task_to_yes_no_assignInfo = {t : [0, 0, AssignInfo()] for t in self.activeTasks}
+
     def assign(self, workerId):
-        if len(self.task_to_assignInfo_ynCount) == 0:
+        if len(self.task_to_yes_no_assignInfo) == 0:
             raise RunOutOfAllTask
         elif len(self.activeTasks) == 0:
             raise RunOutOfActiveTask
         else:
             for task in self.activeTasks:
-                assignInfo = self.task_to_assignInfo_ynCount[task][0]
+                assignInfo = self.task_to_yes_no_assignInfo[task][-1]
                 if workerId not in assignInfo:
                     break
             else:
                 return None
             assignInfo.assign(workerId)
-            self.activeTasks.remove(task) # not support assign a task again until the answer is received
+            if not self.isActive(task):
+                self.activeTasks.remove(task)
             return task
+
     def update(self, workerId, task, label):
-        assignInfo_yesCount_noCount = self.task_to_assignInfo_ynCount[task]
-        assignInfo_yesCount_noCount[0].confirm(workerId)
-        assignInfo_yesCount_noCount[2 - label] += 1
-        yesCount = assignInfo_yesCount_noCount[1]
-        noCount = assignInfo_yesCount_noCount[2]
-        state = self.strategyGrid[noCount][yesCount] 
+        yes, no, assignInfo = self.task_to_yes_no_assignInfo[task]
+        if label == 0:
+            no += 1
+        else:
+            yes += 1
+
+        state = self.strategyGrid[no][yes] 
+        if state == crowdscreen.UNREACHABLE:
+            raise ValueError("Reach UNREACHABLE node")
         if state == crowdscreen.PASS:
-            self.answerList.append(SimpleAnswerWithLabelCount(task, 1, yesCount, noCount))
-            del self.task_to_assignInfo_ynCount[task]
+            self.answerList.append(SimpleAnswerWithLabelCount(task, 1, yes, no))
+            del self.task_to_yes_no_assignInfo[task]
+            assert(task not in self.activeTasks)
         elif state == crowdscreen.FAIL:
-            self.answerList.append(SimpleAnswerWithLabelCount(task, 0, yesCount, noCount))
-            del self.task_to_assignInfo_ynCount[task]
+            self.answerList.append(SimpleAnswerWithLabelCount(task, 0, yes, no))
+            del self.task_to_yes_no_assignInfo[task]
+            assert(task not in self.activeTasks)
         else: # conn
-            self.activeTasks.add(task)
+            self.task_to_yes_no_assignInfo[task][0] = yes
+            self.task_to_yes_no_assignInfo[task][1] = no
+            assignInfo.confirm(workerId)
+            if self.isActive(task):
+                self.activeTasks.add(task)
+
     def abandon(self, workerId, task):
-        self.task_to_assignInfo_ynCount[task][0].abandon(workerId)
+        self.task_to_yes_no_assignInfo[task][-1].abandon(workerId)
         self.activeTasks.add(task)
+
+    def isActive(self, task):
+        yes, no, assignInfo = self.task_to_yes_no_assignInfo[task]
+        left = self.stepsToNearestTermPoint[no][yes] - len(assignInfo.unconfirmedWorkers)
+        assert(left >= 0)
+        return left > 0
+
+class StrategyAssigner2(BaseStrategyAssigner):
+    """An assigner use crowdscreen strategy and interface assign2()"""
+    def link(self, generator):
+        BaseStrategyAssigner.link(self, generator)
+        # `..._yes_no_active` means the number of yes/no received and the number of
+        # assignments that has not received answers respecially
+        self.task_to_yes_no_active = { task: [0, 0, 0] for task in self.activeTasks }
+
+    def assign2(self):
+        if len(self.task_to_yes_no_active) == 0:
+            raise RunOutOfAllTask
+        else:
+            while len(self.activeTasks) != 0:
+                task = self.activeTasks.pop()
+                times = self.timesCanAsk(task)
+                assert(times >= 0)
+                if times == 0:
+                    continue
+                self.task_to_yes_no_active[task][-1] += times
+                return AnonymousAssignment(task, times)
+            raise RunOutOfActiveTask
+
+    def update(self, workerId, task, label):
+        yes, no, active = self.task_to_yes_no_active[task]
+        if active == 0:
+            raise ValueError("This task (id={}) has no active assignment".format(task.id))
+        active -= 1
+        if label == 0:
+            no += 1
+        else:
+            yes += 1
+        state = self.strategyGrid[no][yes]
+        if state == crowdscreen.UNREACHABLE:
+            raise ValueError("Reach UNREACHABLE node")
+        if state == crowdscreen.PASS:
+            self.answerList.append(SimpleAnswerWithLabelCount(task, 1, yes, no))
+            del self.task_to_yes_no_active[task]
+            self.activeTasks.discard(task)
+        elif state == crowdscreen.FAIL:
+            self.answerList.append(SimpleAnswerWithLabelCount(task, 0, yes, no))
+            del self.task_to_yes_no_active[task]
+            self.activeTasks.discard(task)
+        else: # conn
+            self.task_to_yes_no_active[task] = [yes, no, active]
+            if self.timesCanAsk(task) > 0:
+                self.activeTasks.add(task)
+
+    def abandon(self, workerId, task):
+        if self.task_to_yes_no_active[task][-1] == 0:
+            raise ValueError("This task (id={}) has no active assignment".format(task.id))
+        self.task_to_yes_no_active[task][-1] -= 1
+        self.activeTasks.add(task)
+
+    def timesCanAsk(self, task):
+        yes, no, active = self.task_to_yes_no_active[task]
+        steps = self.stepsToNearestTermPoint[no][yes]
+        return steps - active
+

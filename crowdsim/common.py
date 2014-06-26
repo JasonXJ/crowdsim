@@ -6,6 +6,7 @@ Answer = namedtuple('Answer', 'workerId, task, label')
 SimpleAnswer = namedtuple('SimpleAnswer', 'task, label')
 SimpleAnswerWithLabelCount = namedtuple('SimpleAnswerWithLableCount', 'task, label, yesCount, noCount')
 BinaryTaskMetrics = namedtuple('BinaryTaskMetrics', 'precision, recall, f1, accuracy')
+AnonymousAssignment = namedtuple('AnonymousAssignment', 'task, duplicate')
 
 def toCallable(obj):
     try:
