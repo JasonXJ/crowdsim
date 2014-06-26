@@ -184,12 +184,6 @@ class StrategyAssigner2(BaseStrategyAssigner):
             if self.timesCanAsk(task) > 0:
                 self.activeTasks.add(task)
 
-    def abandon(self, workerId, task):
-        if self.task_to_yes_no_active[task][-1] == 0:
-            raise ValueError("This task (id={}) has no active assignment".format(task.id))
-        self.task_to_yes_no_active[task][-1] -= 1
-        self.activeTasks.add(task)
-
     def timesCanAsk(self, task):
         yes, no, active = self.task_to_yes_no_active[task]
         steps = self.stepsToNearestTermPoint[no][yes]
