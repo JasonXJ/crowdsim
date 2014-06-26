@@ -245,6 +245,34 @@ def calcLadderShapeCount(m):
                     count += nCr(decX+decY-y, decX) * nCr(decX+decY-x, decY)
     return count
 
+def calcStepsToNearestTermPoint(strategyGrid):
+    """return a 2D array indicates steps from continuing points to nearest left and upper terminating point.
+    
+    if (x,y) is a terminating point, then array[x][y] == 0. if (x,y) is
+    unreachable, array[x][y] == -1"""
+    gridLength = len(strategyGrid)
+    grid = [ [ -1 for i in range(gridLength) ] for j in range(gridLength) ]
+
+    def recur(x, y):
+        val = strategyGrid[x][y]
+        if val == PASS or val == FAIL:
+            grid[x][y] = 0
+            return
+        if val == UNREACHABLE:
+            raise MeetUnreachableNode
+        if val == CONN:
+            if grid[x + 1][y] == -1:
+                recur(x + 1, y)
+            if grid[x][y + 1] == -1:
+                recur(x, y + 1)
+            grid[x][y] = min(grid[x + 1][y], grid[x][y + 1]) + 1
+
+    recur(0, 0)
+    return grid
+
+
+
+
 #### test class stragety: see crowdscreen paper figure 1(c)
 #s = strategy(5, 0.5, 0.2, 0.1)
 #s.grid[0][2] = PASS
