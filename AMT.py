@@ -41,6 +41,12 @@ class flags:
         reviewable = 'Reviewable'
         reviewing = 'Reviewing'
 
+    class assignmentStatus:
+        submitted = 'Submitted'
+        approved = 'Approved'
+        rejected = 'Rejected'
+        approvedOrRejected = 'Approved,Rejected'
+
 class AMT:
     def __init__(self, keyId, secret, useSandbox = True, verify = True):
         self.keyId = keyId
@@ -171,7 +177,7 @@ class AMT:
     def getReviewableHITs(self, HITTypeId = None, status : flags.status = None,
             sortProperty : flags.sortProperty = None, sortDirection :
             flags.sortDirection = None, pageSize = None, pageNumber = None):
-        """Retrieve HITs and return a set of HITId"""
+        """Retrieve HITs and return a list of deduplicated HITId (order does not change)"""
 
         getAllPages = False
         if pageNumber is None:
@@ -187,6 +193,7 @@ class AMT:
             'PageNumber'    : pageNumber,
         }
         idSet = set()
+        idList = []
 
         while True:
             r = self.request('GetReviewableHITs', parameters)
@@ -195,12 +202,23 @@ class AMT:
             if int(r['NumResults']) == 0:
                 break
             for x in r.result.findall('HIT'):
-                idSet.add(x.find('HITId').text)
+                id = x.find('HITId').text
+                if id not in idSet:
+                    idSet.add(id)
+                    idList.append(id)
             if getAllPages == False:
                 break
             parameters['PageNumber'] += 1
-        return idSet
+        return idList
 
+    def getAssignmentsForHIT(self, id, assignmentStatus : flags.assignmentStatus = None, sortProperty : flags.sortProperty = None, sortDirection : flags.sortDirection = None, pageSize = None, pageNumber = None):
+        """@todo: Docstring for getAssignmentsForHIT.
+
+        :arg1: @todo
+        :returns: @todo
+
+        """
+        pass
 
     def searchHITs(self, sortProperty : flags.sortProperty = None,
             sortDirection : flags.sortDirection = None, pageNumber = None,
@@ -208,7 +226,7 @@ class AMT:
         """Retrieve HITs and return a deduplicated list of dict
 
         Each element of the list is a dict that represent an HIT. The list has
-        been deduplicated based on the HITId.
+        been deduplicated based on the HITId but the order does not change.
 
         If one of the respond from AMT is not valid, the return value will be None
 
