@@ -4,9 +4,42 @@ import time, hmac, hashlib, base64
 import requests
 import xml.etree.ElementTree as et
 from collections import namedtuple
+import logging
+import xmltodict
+
+DEBUG = False
 
 sPrice = namedtuple('sPrice', 'Amount, CurrencyCode')
 sHITLayoutParameter = namedtuple('sHITLayoutParameter', 'Name, Value')
+
+class flags:
+    class sortProperty:
+        title = 'Title'
+        reward = 'Reward'
+        expiration = 'Expiration'
+        creationTime = 'CreationTime'
+        enumeration = 'Enumeration'
+
+        acceptTime = 'AcceptTime'
+        submittime = 'Submittime'
+        assignmentStatus = 'AssignmentStatus'
+
+    class sortDirection:
+        ascending = 'Ascending'
+        descending = 'Descending'
+
+    class responseGroup:
+        request = 'Request'
+        minimal = 'Minimal'
+        hITDetail = 'HITDetail'
+        hITQuestion = 'HITQuestion'
+        hITAssignmentSummary = 'HITAssignmentSummary'
+        parameters = 'Parameters'
+        assignmentFeedback = 'AssignmentFeedback'
+
+    class status:
+        reviewable = 'Reviewable'
+        reviewing = 'Reviewing'
 
 class AMT:
     def __init__(self, keyId, secret, useSandbox = True, verify = True):
@@ -80,20 +113,27 @@ class AMT:
         parameters['Signature'] = self._generateSignature(parameters)
 
         request = requests.post(self.service_url, params = parameters, verify = self.verify)
+        if DEBUG:
+            from xml.dom.minidom import parseString
+            logging.debug('request url: ' + request.url)
+            logging.debug('respond text:\n' + parseString(request.text).toprettyxml())
         self.respondCache = AMTRespond(request.text)
-        print(request.text)
         return self.respondCache
 
-    def GetAccountBalance(self):
+    def getAccountBalance(self):
         r = self.request('GetAccountBalance')
         if r.valid:
             return float(r['AvailableBalance/Amount'])
-    def CreateHIT(self, chp : CreateHITParameters):
-        """return (HITId, HITTypeId) or None"""
-        r = self.request('CreateHIT', chp.parameters)
+
+    def createHIT(self, createHITParameters):
+        """CreateHIT based on createHITParameters, which should be of type "CreateHITParameters"
+        
+        return (HITId, HITTypeId) or None"""
+        r = self.request('CreateHIT', createHITParameters.parameters)
         if r.valid:
             return (r['HITId'], r['HITTypeId'])
-    def RegisterHITType(self, title, description, rewardAmount, assignmentDurationInSeconds, keywords = None, autoApprovalDelayInSeconds = None, qualificationRequirement = None):
+
+    def registerHITType(self, title, description, rewardAmount, assignmentDurationInSeconds, keywords = None, autoApprovalDelayInSeconds = None, qualificationRequirement = None):
         parameters = {
             'Title'                       : title,
             'Description'                 : description,
@@ -108,8 +148,128 @@ class AMT:
         if r.valid:
             return r['HITTypeId']
 
+    def _extractComplexResultsToDict(self, dest, responseXml, extractFunc, idExtractFunc = None):
+        def addInDest(item):
+            if idExtractFunc is None:
+                dest.append(item)
+            else:
+                id = idExtractFunc(item) 
+                if id not in idSet:
+                    idSet.add(id)
+                    dest.append(item)
+
+        d = xmltodict.parse(responseXml, dict_constructor = dict)
+        idSet = set()
+        targetList = extractFunc(d)
+        if not isinstance(targetList, list):
+            # is an item instead of a list
+            addInDest(targetList)
+        else:
+            for item in targetList:
+                addInDest(item)
+
+    def getReviewableHITs(self, HITTypeId = None, status : flags.status = None,
+            sortProperty : flags.sortProperty = None, sortDirection :
+            flags.sortDirection = None, pageSize = None, pageNumber = None):
+        """Retrieve HITs and return a set of HITId"""
+
+        getAllPages = False
+        if pageNumber is None:
+            pageNumber = 1
+            getAllPages = True
+
+        parameters = {
+            'HITTypeId'     : HITTypeId,
+            'Status'        : status,
+            'SortProperty'  : sortProperty,
+            'SortDirection' : sortDirection,
+            'PageSize'      : pageSize,
+            'PageNumber'    : pageNumber,
+        }
+        idSet = set()
+
+        while True:
+            r = self.request('GetReviewableHITs', parameters)
+            if not r.valid:
+                return
+            if int(r['NumResults']) == 0:
+                break
+            for x in r.result.findall('HIT'):
+                idSet.add(x.find('HITId').text)
+            if getAllPages == False:
+                break
+            parameters['PageNumber'] += 1
+        return idSet
 
 
+    def searchHITs(self, sortProperty : flags.sortProperty = None,
+            sortDirection : flags.sortDirection = None, pageNumber = None,
+            pageSize = None, responseGroup : flags.responseGroup = None):
+        """Retrieve HITs and return a deduplicated list of dict
+
+        Each element of the list is a dict that represent an HIT. The list has
+        been deduplicated based on the HITId.
+
+        If one of the respond from AMT is not valid, the return value will be None
+
+        If pageNumber == None, then this function will retrieve pages from page
+        1 until no results are returned."""
+
+        getAllPages = False
+        if pageNumber is None:
+            pageNumber = 1
+            getAllPages = True
+        parameters = {
+            'SortProperty'  : sortProperty,
+            'SortDirection' : sortDirection,
+            'PageNumber'    : pageNumber,
+            'PageSize'      : pageSize,
+            'ResponseGroup' : responseGroup
+        }
+        dictList = []
+        while True:
+            r = self.request('SearchHITs', parameters)
+            if not r.valid:
+                return
+            if int(r['NumResults']) == 0:
+                break
+            self._extractComplexResultsToDict(dictList, r.xml,
+                    lambda x: x['SearchHITsResponse']['SearchHITsResult']['HIT'], lambda x : x['HITId'])
+            if getAllPages == False:
+                break
+            parameters['PageNumber'] += 1
+        return dictList
+
+    def disposeHIT(self, id): 
+        r = self.request('DisposeHIT', {'HITId', id})
+        return r.valid
+
+    def disableHIT(self, id): 
+        r = self.request('DisableHIT', {'HITId', id})
+        return r.valid
+
+    def forceExpireHIT(self, id):
+        r = self.request('ForceExpireHIT', {'HITId', id})
+        return r.valid
+
+    def extendHIT(self, id, maxAssignmentsIncrement = None, expirationIncrementInSeconds = None, uniqueRequestToken = None):
+        parameters = {
+            'HITId'                           : id,
+            'MaxAssignmentsIncrement'      : maxAssignmentsIncrement,
+            'ExpirationIncrementInSeconds' : expirationIncrementInSeconds,
+            'UniqueRequestToken'           : uniqueRequestToken,
+        }
+        r = self.request('ExtendHIT', parameters)
+        return r.valid
+
+    def _setHITAsReviewing(self, id, revert):
+        '''Don't use this function directly. Use toReviewing()/toReviewable()'''
+        r = self.request('SetHITAsReviewing', {'HITId' : id, 'Revert' : revert})
+        return r.valid
+    def toReviewing(self, id):
+        return self._setHITAsReviewing(id, revert = 'false')
+    def toReviewable(self, id):
+        return self._setHITAsReviewing(id, revert = 'true')
 
 
 class AMTRespond:
@@ -121,12 +281,12 @@ class AMTRespond:
                 self.operationRequest = child
             else:
                 self.result = child
-        self.error = False
+
         self.valid = False
-        if self.operationRequest.find('Errors'):
-            self.error = True
-        if self.error == False:
-            self.valid = self.result.find('Request/IsValid').text == 'True'
+        if self.result is not None:
+            validElement = self.result.find('Request/IsValid')
+            if validElement is not None and validElement.text == 'True':
+                self.valid = True
 
     def _locate(self, element, path):
         r = element.find(path)
@@ -166,6 +326,7 @@ class CreateHITParameters:
     def setTypeId(self, id):
         self.parameters['HITTypeId'] = id
         return self
+
     def setTypeProperties(self, title, description, rewardAmount, assignmentDurationInSeconds, keywords = None, autoApprovalDelayInSeconds = None, qualificationRequirement = None):
         self.parameters['Title']                       = title
         self.parameters['Description']                 = description
@@ -175,13 +336,21 @@ class CreateHITParameters:
         self.parameters['AutoApprovalDelayInSeconds']  = autoApprovalDelayInSeconds
         self.parameters['QualificationRequirement']    = qualificationRequirement
         return self
+
     def setQuestion(self, question):
         self.parameters['Question'] = question
         return self
-    def setLayout(self, layoutId, layoutParameter : dict):
+
+    def setLayout(self, layoutId, layoutParameter : dict = None):
         """set the layout used and the values for the placeholders
         
         layoutParameter should be a dict whose keys are
         HITLayoutParameter.Name and values are HITLayoutParameter.Value"""
         self.parameters['HITLayoutId'] = layoutId
+        if layoutParameter != None:
+            self.parameters['HITLayoutParameter'] = [sHITLayoutParameter(k, v) for k, v in layoutParameter.items()]
+        return self
+
+    def setLayoutParameter(self, layoutParameter : dict):
         self.parameters['HITLayoutParameter'] = [sHITLayoutParameter(k, v) for k, v in layoutParameter.items()]
+        return self
