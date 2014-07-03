@@ -6,6 +6,7 @@ import xml.etree.ElementTree as et
 from collections import namedtuple
 import logging
 import xmltodict
+import xml.dom.minidom as minidom
 
 DEBUG = False
 
@@ -120,9 +121,8 @@ class AMT:
 
         request = requests.post(self.service_url, params = parameters, verify = self.verify)
         if DEBUG:
-            from xml.dom.minidom import parseString
             logging.debug('request url: ' + request.url)
-            logging.debug('respond text:\n' + parseString(request.text).toprettyxml())
+            logging.debug('respond text:\n' + minidom.parseString(request.text).toprettyxml())
         self.respondCache = AMTRespond(request.text)
         return self.respondCache
 
@@ -223,6 +223,7 @@ class AMT:
     def searchHITs(self, sortProperty : flags.sortProperty = None,
             sortDirection : flags.sortDirection = None, pageNumber = None,
             pageSize = None, responseGroup : flags.responseGroup = None):
+        # FIXME 
         """Retrieve HITs and return a deduplicated list of dict
 
         Each element of the list is a dict that represent an HIT. The list has
@@ -244,19 +245,25 @@ class AMT:
             'PageSize'      : pageSize,
             'ResponseGroup' : responseGroup
         }
-        dictList = []
+        elementList = []
+        idSet = set()
         while True:
             r = self.request('SearchHITs', parameters)
             if not r.valid:
                 return
             if int(r['NumResults']) == 0:
                 break
-            self._extractComplexResultsToDict(dictList, r.xml,
-                    lambda x: x['SearchHITsResponse']['SearchHITsResult']['HIT'], lambda x : x['HITId'])
+            #self._extractComplexResultsToDict(dictList, r.xml,
+            #        lambda x: x['SearchHITsResponse']['SearchHITsResult']['HIT'], lambda x : x['HITId'])
+            for element in r.result.findall('HIT'):
+                id = element.findtext('HITId')
+                if id not in idSet:
+                    idSet.add(id)
+                    elementList.append(element)
             if getAllPages == False:
                 break
             parameters['PageNumber'] += 1
-        return dictList
+        return elementList
 
     def disposeHIT(self, id): 
         r = self.request('DisposeHIT', {'HITId', id})
@@ -372,3 +379,7 @@ class CreateHITParameters:
     def setLayoutParameter(self, layoutParameter : dict):
         self.parameters['HITLayoutParameter'] = [sHITLayoutParameter(k, v) for k, v in layoutParameter.items()]
         return self
+
+def prettyPrintElement(element):
+    """A function to print xml element"""
+    print(minidom.parseString(et.tostring(element, 'utf-8')).toprettyxml())
