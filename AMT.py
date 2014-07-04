@@ -7,6 +7,8 @@ from collections import namedtuple
 import logging
 import xmltodict
 import xml.dom.minidom as minidom
+import xml.parsers.expat.errors as xmlErrors
+from xml.parsers.expat import ExpatError
 
 DEBUG = False
 
@@ -46,7 +48,7 @@ class flags:
         submitted = 'Submitted'
         approved = 'Approved'
         rejected = 'Rejected'
-        approvedOrRejected = 'Approved,Rejected'
+        #approvedOrRejected = [Approved,Rejected]
 
 class AMT:
     def __init__(self, keyId, secret, useSandbox = True, verify = True):
@@ -57,6 +59,202 @@ class AMT:
             self.service_url='https://mechanicalturk.sandbox.amazonaws.com/'
         else:
             self.service_url='https://mechanicalturk.amazonaws.com/'
+
+    def request(self, operation, parameters = None):
+        """parameters should be None or a dict.
+        
+        If parameters is a dict, the value for each item in the dict can be
+        str, int, float, a instance of some namedtuple, or a iterable contains
+        the type just mentioned."""
+        if parameters is None:
+            parameters = dict()
+        else:
+            parameters = self._flattenParameters(parameters)
+        parameters['Service'] = 'AWSMechanicalTurkRequester'
+        parameters['Operation'] = operation
+        parameters['Version'] = '2012-03-25'
+        parameters['AWSAccessKeyId'] = self.keyId
+        parameters['Timestamp'] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        parameters['Signature'] = self._generateSignature(parameters)
+
+        # TODO: auto retry if the request timeout
+        request = requests.post(self.service_url, params = parameters, verify = self.verify)
+        if DEBUG:
+            logging.debug('request url: ' + request.url)
+            logging.debug('respond text:\n' + minidom.parseString(request.text).toprettyxml())
+        self.respondCache = AMTRespond(request.text)
+        return self.respondCache
+
+    def getAccountBalance(self):
+        r = self.request('GetAccountBalance')
+        if r.valid:
+            return float(r['AvailableBalance/Amount'])
+
+    def createHIT(self, createHITParameters):
+        """CreateHIT based on createHITParameters, which should be of type "CreateHITParameters"
+        
+        return (HITId, HITTypeId) or None"""
+        # TODO: use uniqueRequestToken
+        r = self.request('CreateHIT', createHITParameters.parameters)
+        if r.valid:
+            return (r['HITId'], r['HITTypeId'])
+
+    def registerHITType(self, title, description, rewardAmount, assignmentDurationInSeconds, keywords = None, autoApprovalDelayInSeconds = None, qualificationRequirement = None):
+        parameters = {
+            'Title'                       : title,
+            'Description'                 : description,
+            'Reward'                      : sPrice(rewardAmount, 'USD'),
+            'AssignmentDurationInSeconds' : assignmentDurationInSeconds,
+            'Keywords'                    : keywords,
+            'AutoApprovalDelayInSeconds'  : autoApprovalDelayInSeconds,
+            'QualificationRequirement'    : qualificationRequirement
+        }
+        
+        r = self.request('RegisterHITType', parameters)
+        if r.valid:
+            return r['HITTypeId']
+
+    def getReviewableHITs(self, HITTypeId = None, status : flags.status = None,
+            sortProperty : flags.sortProperty = None, sortDirection :
+            flags.sortDirection = None, pageSize = None, pageNumber = None):
+        """Retrieve HITs and return a list of deduplicated HITId
+        
+        see _getPages() for more help"""
+        parameters = {
+            'HITTypeId'     : HITTypeId,
+            'Status'        : status,
+            'SortProperty'  : sortProperty,
+            'SortDirection' : sortDirection,
+            'PageSize'      : pageSize,
+            'PageNumber'    : pageNumber,
+        }
+        return self._getPages('GetReviewableHITs', parameters, lambda x :
+                x.findall('HIT'), lambda x : x.findtext('HITId'), lambda i, e: i)
+
+    def getAssignmentsForHIT(self, id, assignmentStatus :
+            flags.assignmentStatus = None, sortProperty : flags.sortProperty =
+            None, sortDirection : flags.sortDirection = None, pageSize = None,
+            pageNumber = None):
+        '''Retrieve and return a deduplicated list of tuples (assignmentId, answer, assignment)
+
+        The `assignment` is an xml elements and the `answer` is a dict which is
+        extracted by self._answerDictConstructor()
+        
+        see _getPages() for more help'''
+
+        parameters = {
+            'HITId'            : id,
+            'AssignmentStatus' : assignmentStatus,
+            'SortProperty'     : sortProperty,
+            'SortDirection'    : sortDirection,
+            'PageSize'         : pageSize,
+            'PageNumber'       : pageNumber,
+        }
+        
+        def constructTuple(id, element):
+            answerString = element.findtext('Answer')
+            answer = None
+            if answerString is not None:
+                answer = self._answerDictConstructor(answerString)
+            return (id, answer, element)
+
+        return self._getPages('GetAssignmentsForHIT', parameters, lambda r :
+                r.findall('Assignment'), lambda e : e.findtext('AssignmentId'),
+                constructTuple)
+
+    def searchHITs(self, sortProperty : flags.sortProperty = None,
+            sortDirection : flags.sortDirection = None, pageNumber = None,
+            pageSize = None, responseGroup : flags.responseGroup = None):
+        """Retrieve HITs and return a deduplicated list of HIT xml element
+
+        See _getPages() for more help"""
+
+        parameters = {
+            'SortProperty'  : sortProperty,
+            'SortDirection' : sortDirection,
+            'PageNumber'    : pageNumber,
+            'PageSize'      : pageSize,
+            'ResponseGroup' : responseGroup
+        }
+        return self._getPages('SearchHITs', parameters, lambda x : x.findall('HIT'),
+                lambda x : x.findtext('HITId'), lambda i, e : e)
+
+    def disposeHIT(self, id): 
+        r = self.request('DisposeHIT', {'HITId': id})
+        return r.valid
+
+    def disableHIT(self, id): 
+        r = self.request('DisableHIT', {'HITId': id})
+        return r.valid
+
+    def forceExpireHIT(self, id):
+        r = self.request('ForceExpireHIT', {'HITId': id})
+        return r.valid
+
+    def extendHIT(self, id, maxAssignmentsIncrement = None, expirationIncrementInSeconds = None):
+        # TODO: use uniqueRequestToken
+        parameters = {
+            'HITId'                           : id,
+            'MaxAssignmentsIncrement'      : maxAssignmentsIncrement,
+            'ExpirationIncrementInSeconds' : expirationIncrementInSeconds,
+        }
+        r = self.request('ExtendHIT', parameters)
+        return r.valid
+
+    def toReviewing(self, id):
+        return self._setHITAsReviewing(id, revert = 'false')
+    def toReviewable(self, id):
+        return self._setHITAsReviewing(id, revert = 'true')
+
+    def approveAssignment(self, assignmentId, requesterFeedback = None):
+        parameters = {
+            'AssignmentId'      : assignmentId,
+            'RequesterFeedback' : requesterFeedback,
+        }
+        return self.request('ApproveAssignment', parameters).valid
+
+    def rejectAssignment(self, assignmentId, requesterFeedback = None):
+        parameters = {
+            'AssignmentId'      : assignmentId,
+            'RequesterFeedback' : requesterFeedback,
+        }
+        return self.request('RejectAssignment', parameters).valid
+
+    def getHIT(self, id, responseGroup : flags.responseGroup = None):
+        r = self.request('GetHIT', {'HITId' : id, 'ResponseGroup' : responseGroup})
+        return r.result
+
+    def _answerDictConstructor(self, answerString):
+        '''Construct a dict represent the answer based on the xml answerString
+
+        This function parse the xml and return a dict based on the xsd
+        (http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2005-10-01/QuestionFormAnswers.xsd).
+        except that it assumes there is exactly one 'Answer' element.
+
+        If no element found in answerString, it returns None.'''
+
+        namespaces = {'http://mechanicalturk.amazonaws.com/'\
+                'AWSMechanicalTurkDataSchemas/2005-10-01/QuestionFormAnswers.xsd' : None}
+        # TODO: the 0.9.0 version of xmltodict cannot deal with namespaces
+        # correctly. While this function works correctly now, the lack of
+        # namespaces support may suppress some errors. Check xmltodict when the
+        # new version is published.
+        try:
+            d = xmltodict.parse(answerString, namespaces = namespaces, dict_constructor=dict)
+        except ExpatError as err:
+            if xmlErrors.messages[err.code] == xmlErrors.XML_ERROR_NO_ELEMENTS:
+                return
+            raise
+
+        self.origind = d
+        d = d['QuestionFormAnswers']['Answer']
+        if isinstance(d, list):
+            raise RuntimeError('Multiple "answer" elements!')
+        if 'SelectionIdentifier' in d and not isinstance(d['SelectionIdentifier'], list):
+            # This element can appear multiple times. Make sure it is always a
+            # list.
+            d['SelectionIdentifier'] = [d['SelectionIdentifier']]
+        return d
 
     def _generateSignature(self, parameters):
         msg = parameters['Service'] + parameters['Operation'] + parameters['Timestamp']
@@ -102,210 +300,72 @@ class AMT:
         for name in value._fields:
             parameters[prefix + name] = getattr(value, name)
 
-    def request(self, operation, parameters = None):
-        """parameters should be None or a dict.
+    def _getPages(self, operation, param : dict, elementExtracter : callable, idExtracter : callable, handler : callable):
+        '''A common function for API that retrieve data based on page number.
+
+        If one of the respond is invalid or idExtracter() return None, the
+        return value will be None.
         
-        If parameters is a dict, the value for each item in the dict can be
-        str, int, float, a instance of some namedtuple, or a iterable contains
-        the type just mentioned."""
-        if parameters is None:
-            parameters = dict()
-        else:
-            parameters = self._flattenParameters(parameters)
-        parameters['Service'] = 'AWSMechanicalTurkRequester'
-        parameters['Operation'] = operation
-        parameters['Version'] = '2012-03-25'
-        parameters['AWSAccessKeyId'] = self.keyId
-        parameters['Timestamp'] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        parameters['Signature'] = self._generateSignature(parameters)
-
-        request = requests.post(self.service_url, params = parameters, verify = self.verify)
-        if DEBUG:
-            logging.debug('request url: ' + request.url)
-            logging.debug('respond text:\n' + minidom.parseString(request.text).toprettyxml())
-        self.respondCache = AMTRespond(request.text)
-        return self.respondCache
-
-    def getAccountBalance(self):
-        r = self.request('GetAccountBalance')
-        if r.valid:
-            return float(r['AvailableBalance/Amount'])
-
-    def createHIT(self, createHITParameters):
-        """CreateHIT based on createHITParameters, which should be of type "CreateHITParameters"
+        If param["PageNumber"] is None, then this function will get pages 1, 2
+        ... until int(response['NumResults']) == 0. Elements with smaller page
+        numbers will appear first.
         
-        return (HITId, HITTypeId) or None"""
-        r = self.request('CreateHIT', createHITParameters.parameters)
-        if r.valid:
-            return (r['HITId'], r['HITTypeId'])
-
-    def registerHITType(self, title, description, rewardAmount, assignmentDurationInSeconds, keywords = None, autoApprovalDelayInSeconds = None, qualificationRequirement = None):
-        parameters = {
-            'Title'                       : title,
-            'Description'                 : description,
-            'Reward'                      : sPrice(rewardAmount, 'USD'),
-            'AssignmentDurationInSeconds' : assignmentDurationInSeconds,
-            'Keywords'                    : keywords,
-            'AutoApprovalDelayInSeconds'  : autoApprovalDelayInSeconds,
-            'QualificationRequirement'    : qualificationRequirement
-        }
+        elementExtracter(AMTRespond.result) is a callable object that return
+        iterable for interesting elements.
         
-        r = self.request('RegisterHITType', parameters)
-        if r.valid:
-            return r['HITTypeId']
+        idExtracter(element) is a callable object that extract id from elements.
+        The returned list is deduplicated based on the id.
 
-    def _extractComplexResultsToDict(self, dest, responseXml, extractFunc, idExtractFunc = None):
-        def addInDest(item):
-            if idExtractFunc is None:
-                dest.append(item)
-            else:
-                id = idExtractFunc(item) 
-                if id not in idSet:
-                    idSet.add(id)
-                    dest.append(item)
-
-        d = xmltodict.parse(responseXml, dict_constructor = dict)
-        idSet = set()
-        targetList = extractFunc(d)
-        if not isinstance(targetList, list):
-            # is an item instead of a list
-            addInDest(targetList)
-        else:
-            for item in targetList:
-                addInDest(item)
-
-    def getReviewableHITs(self, HITTypeId = None, status : flags.status = None,
-            sortProperty : flags.sortProperty = None, sortDirection :
-            flags.sortDirection = None, pageSize = None, pageNumber = None):
-        """Retrieve HITs and return a list of deduplicated HITId (order does not change)"""
+        handler(id, element) is a callable object that return a value to be
+        appended to the returned list.'''
 
         getAllPages = False
-        if pageNumber is None:
-            pageNumber = 1
+        if param['PageNumber'] is None:
+            param['PageNumber'] = 1
             getAllPages = True
-
-        parameters = {
-            'HITTypeId'     : HITTypeId,
-            'Status'        : status,
-            'SortProperty'  : sortProperty,
-            'SortDirection' : sortDirection,
-            'PageSize'      : pageSize,
-            'PageNumber'    : pageNumber,
-        }
+        returnList = []
         idSet = set()
-        idList = []
-
         while True:
-            r = self.request('GetReviewableHITs', parameters)
+            r = self.request(operation, param)
             if not r.valid:
                 return
             if int(r['NumResults']) == 0:
                 break
-            for x in r.result.findall('HIT'):
-                id = x.find('HITId').text
+            for element in elementExtracter(r.result):
+                id = idExtracter(element)
+                assert(id is not None)
                 if id not in idSet:
                     idSet.add(id)
-                    idList.append(id)
+                    returnList.append(handler(id, element))
             if getAllPages == False:
                 break
-            parameters['PageNumber'] += 1
-        return idList
-
-    def getAssignmentsForHIT(self, id, assignmentStatus : flags.assignmentStatus = None, sortProperty : flags.sortProperty = None, sortDirection : flags.sortDirection = None, pageSize = None, pageNumber = None):
-        """@todo: Docstring for getAssignmentsForHIT.
-
-        :arg1: @todo
-        :returns: @todo
-
-        """
-        pass
-
-    def searchHITs(self, sortProperty : flags.sortProperty = None,
-            sortDirection : flags.sortDirection = None, pageNumber = None,
-            pageSize = None, responseGroup : flags.responseGroup = None):
-        # FIXME 
-        """Retrieve HITs and return a deduplicated list of dict
-
-        Each element of the list is a dict that represent an HIT. The list has
-        been deduplicated based on the HITId but the order does not change.
-
-        If one of the respond from AMT is not valid, the return value will be None
-
-        If pageNumber == None, then this function will retrieve pages from page
-        1 until no results are returned."""
-
-        getAllPages = False
-        if pageNumber is None:
-            pageNumber = 1
-            getAllPages = True
-        parameters = {
-            'SortProperty'  : sortProperty,
-            'SortDirection' : sortDirection,
-            'PageNumber'    : pageNumber,
-            'PageSize'      : pageSize,
-            'ResponseGroup' : responseGroup
-        }
-        elementList = []
-        idSet = set()
-        while True:
-            r = self.request('SearchHITs', parameters)
-            if not r.valid:
-                return
-            if int(r['NumResults']) == 0:
-                break
-            #self._extractComplexResultsToDict(dictList, r.xml,
-            #        lambda x: x['SearchHITsResponse']['SearchHITsResult']['HIT'], lambda x : x['HITId'])
-            for element in r.result.findall('HIT'):
-                id = element.findtext('HITId')
-                if id not in idSet:
-                    idSet.add(id)
-                    elementList.append(element)
-            if getAllPages == False:
-                break
-            parameters['PageNumber'] += 1
-        return elementList
-
-    def disposeHIT(self, id): 
-        r = self.request('DisposeHIT', {'HITId', id})
-        return r.valid
-
-    def disableHIT(self, id): 
-        r = self.request('DisableHIT', {'HITId', id})
-        return r.valid
-
-    def forceExpireHIT(self, id):
-        r = self.request('ForceExpireHIT', {'HITId', id})
-        return r.valid
-
-    def extendHIT(self, id, maxAssignmentsIncrement = None, expirationIncrementInSeconds = None, uniqueRequestToken = None):
-        parameters = {
-            'HITId'                           : id,
-            'MaxAssignmentsIncrement'      : maxAssignmentsIncrement,
-            'ExpirationIncrementInSeconds' : expirationIncrementInSeconds,
-            'UniqueRequestToken'           : uniqueRequestToken,
-        }
-        r = self.request('ExtendHIT', parameters)
-        return r.valid
+            param['PageNumber'] += 1
+        return returnList
 
     def _setHITAsReviewing(self, id, revert):
         '''Don't use this function directly. Use toReviewing()/toReviewable()'''
         r = self.request('SetHITAsReviewing', {'HITId' : id, 'Revert' : revert})
         return r.valid
-    def toReviewing(self, id):
-        return self._setHITAsReviewing(id, revert = 'false')
-    def toReviewable(self, id):
-        return self._setHITAsReviewing(id, revert = 'true')
+
+
 
 
 class AMTRespond:
     def __init__(self, xml):
         self.xml = xml
         self.root = et.fromstring(self.xml)
+        self.operationRequest = self.result = None
         for child in self.root:
             if child.tag == 'OperationRequest':
                 self.operationRequest = child
             else:
                 self.result = child
+
+        self.error = False
+        for item in self.root.iter():
+            if item.tag == 'Errors' or item.tag == 'Error':
+                self.error = True
+                break
 
         self.valid = False
         if self.result is not None:
@@ -380,6 +440,10 @@ class CreateHITParameters:
         self.parameters['HITLayoutParameter'] = [sHITLayoutParameter(k, v) for k, v in layoutParameter.items()]
         return self
 
-def prettyPrintElement(element):
-    """A function to print xml element"""
-    print(minidom.parseString(et.tostring(element, 'utf-8')).toprettyxml())
+def xmlPrettyPrint(source):
+    """A function to print xml element / string"""
+    if isinstance(source, et.Element):
+        string = et.tostring(source, 'utf-8')
+    else:
+        string = source
+    print(minidom.parseString(string).toprettyxml())
