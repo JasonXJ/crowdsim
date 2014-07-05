@@ -20,10 +20,10 @@ def solveTask2(task, pFalsePositive, pFalseNegative):
     else:
         return 1 - task.trueLabel
 
-class BaseWorker:
+class BaseWorkerPool:
     pass
 
-class PWorker(BaseWorker):
+class PWorkerPool(BaseWorkerPool):
     def __init__(self, workerCount, accuracyFunc, assignWeights=None):
         """Init...
 
@@ -59,12 +59,12 @@ class PWorker(BaseWorker):
     def _solve(self, task, workerId):
         return solveTask(task, self.accuracyFunc(workerId))
 
-class PWorker2(PWorker):
+class PWorkerPool2(PWorkerPool):
     def __init__(self, workerCount, accuracyFunc, assignWeights = None):
-        """Identical to PWorker except the return values of accuracyFunc.
+        """Identical to PWorkerPool except the return values of accuracyFunc.
         
         accuracyFunc should return a tuple (false positive rate, false negetive rate)
         """
-        PWorker.__init__(self, workerCount, accuracyFunc, assignWeights)
+        PWorkerPool.__init__(self, workerCount, accuracyFunc, assignWeights)
     def _solve(self, task, workerId):
         return solveTask2(task, *self.accuracyFunc(workerId))

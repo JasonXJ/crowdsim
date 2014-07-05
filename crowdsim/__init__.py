@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 
-from . import common, generator, deducer, assigner, worker
+from . import common, generator, deducer, assigner, workerPool
 
 
-def linkAll(generator = None, assigner = None, worker = None, deducer = None):
+def linkAll(generator = None, assigner = None, workerPool = None, deducer = None):
     if assigner:
         assigner.link(generator)
-    if worker:
-        worker.link(assigner)
+    if workerPool:
+        workerPool.link(assigner)
     if deducer:
-        deducer.link(worker)
+        deducer.link(workerPool)
 
 def hasDuplicatedAnswers(answers):
     taskSet = set()
