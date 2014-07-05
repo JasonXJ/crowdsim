@@ -9,6 +9,7 @@ import xmltodict
 import xml.dom.minidom as minidom
 import xml.parsers.expat.errors as xmlErrors
 from xml.parsers.expat import ExpatError
+import uuid
 
 DEBUG = False
 
@@ -51,17 +52,31 @@ class flags:
         #approvedOrRejected = [Approved,Rejected]
 
 class AMT:
-    def __init__(self, keyId, secret, useSandbox = True, verify = True):
+    def __init__(self, keyId, secret, useSandbox = True, verify = True, timeout = 5.0, tries = 5, uuidGenerator = uuid.uuid1):
+        '''Init...
+
+        `timeout` will be passed to requests.post() and `tries` indicate
+        the maximal times to call the post() method when encounter Timeout
+        exceptions.
+
+        uuidGenerator will be used for createHIT() and extendHIT()'''
+
         self.keyId = keyId
         self.bSecret = secret.encode('utf-8')
         self.verify = verify
+        self.timeout = timeout
+        self.tries = tries
+        self.uuidGenerator = lambda : str(uuidGenerator())
         if useSandbox:
             self.service_url='https://mechanicalturk.sandbox.amazonaws.com/'
         else:
             self.service_url='https://mechanicalturk.amazonaws.com/'
 
-    def request(self, operation, parameters = None):
-        """parameters should be None or a dict.
+    def request(self, operation, parameters = None, addUuid = False):
+        """parameters should be None or a dict. Return (AMTRespond, multipleRequest)
+
+        multipleRequest == True if the requests.post() has been called multiple
+        times because of timeout.
         
         If parameters is a dict, the value for each item in the dict can be
         str, int, float, a instance of some namedtuple, or a iterable contains
@@ -76,17 +91,26 @@ class AMT:
         parameters['AWSAccessKeyId'] = self.keyId
         parameters['Timestamp'] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         parameters['Signature'] = self._generateSignature(parameters)
+        if addUuid:
+            self.uuidCache = parameters['UniqueRequestToken'] = self.uuidGenerator()
+        else:
+            self.uuidCache = None
 
-        # TODO: auto retry if the request timeout
-        request = requests.post(self.service_url, params = parameters, verify = self.verify)
+        for tryTimes in range(self.tries):
+            try:
+                request = requests.post(self.service_url, params = parameters, verify = self.verify, timeout = self.timeout)
+            except requests.Timeout:
+                logging.warning('Requests timeout: #{}'.format(tryTimes + 1))
+                continue
+            break
         if DEBUG:
             logging.debug('request url: ' + request.url)
             logging.debug('respond text:\n' + minidom.parseString(request.text).toprettyxml())
         self.respondCache = AMTRespond(request.text)
-        return self.respondCache
+        return (self.respondCache, tryTimes > 1)
 
     def getAccountBalance(self):
-        r = self.request('GetAccountBalance')
+        r = self.request('GetAccountBalance')[0]
         if r.valid:
             return float(r['AvailableBalance/Amount'])
 
@@ -94,10 +118,30 @@ class AMT:
         """CreateHIT based on createHITParameters, which should be of type "CreateHITParameters"
         
         return (HITId, HITTypeId) or None"""
-        # TODO: use uniqueRequestToken
-        r = self.request('CreateHIT', createHITParameters.parameters)
+        self.HITAlreadyExists = False
+        r, multipleRequest = self.request('CreateHIT', createHITParameters.parameters, addUuid = True)
         if r.valid:
             return (r['HITId'], r['HITTypeId'])
+        elif multipleRequest:
+            code = self.respondCache.result.findtext('Request/Errors/Error/Code')
+            if code == "AWS.MechanicalTurk.HITAlreadyExists":
+                # if this happen, the hit is actuall created successfully, but
+                # r.valud == False because of multiple CreateHIT operation with
+                # the same uuid
+                self.HITAlreadyExists = True
+                logging.warning('creatHIT encounters error "HITAlreadExists"')
+                for element in self.respondCache.result.findall('Request/Errors/Error/Data'):
+                    if element.findtext('Key') == 'HITId':
+                        hitId = element.findtext('Value')
+                        if hitId is not None:
+                            break
+                else:
+                    raise RuntimeError('Cannot get HITId')
+                r = self.getHIT(hitId, responseGroup = flags.responseGroup.minimal)
+                typeId = r.findtext('HITTypeId')
+                if typeId is None:
+                    raise RuntimeError('Cannot get HITTypeId')
+                return (hitId, typeId)
 
     def registerHITType(self, title, description, rewardAmount, assignmentDurationInSeconds, keywords = None, autoApprovalDelayInSeconds = None, qualificationRequirement = None):
         parameters = {
@@ -110,7 +154,7 @@ class AMT:
             'QualificationRequirement'    : qualificationRequirement
         }
         
-        r = self.request('RegisterHITType', parameters)
+        r = self.request('RegisterHITType', parameters)[0]
         if r.valid:
             return r['HITTypeId']
 
@@ -180,26 +224,34 @@ class AMT:
                 lambda x : x.findtext('HITId'), lambda i, e : e)
 
     def disposeHIT(self, id): 
-        r = self.request('DisposeHIT', {'HITId': id})
+        r = self.request('DisposeHIT', {'HITId': id})[0]
         return r.valid
 
     def disableHIT(self, id): 
-        r = self.request('DisableHIT', {'HITId': id})
+        r = self.request('DisableHIT', {'HITId': id})[0]
         return r.valid
 
     def forceExpireHIT(self, id):
-        r = self.request('ForceExpireHIT', {'HITId': id})
+        r = self.request('ForceExpireHIT', {'HITId': id})[0]
         return r.valid
 
     def extendHIT(self, id, maxAssignmentsIncrement = None, expirationIncrementInSeconds = None):
-        # TODO: use uniqueRequestToken
         parameters = {
             'HITId'                           : id,
             'MaxAssignmentsIncrement'      : maxAssignmentsIncrement,
             'ExpirationIncrementInSeconds' : expirationIncrementInSeconds,
         }
-        r = self.request('ExtendHIT', parameters)
-        return r.valid
+        r, multipleRequest = self.request('ExtendHIT', parameters, addUuid = True)
+        self.duplicateExtendHIT = False
+        if r.valid:
+            return r.valid
+        if multipleRequest:
+            code = r.result.findtext('Request/Errors/Error/Code')
+            if code == 'AWS.MechanicalTurk.DuplicateCall':
+                logging.warning('extendHIT encounters error "DuplicateCall"')
+                self.duplicateExtendHIT = True
+                return True
+        return False
 
     def toReviewing(self, id):
         return self._setHITAsReviewing(id, revert = 'false')
@@ -211,17 +263,17 @@ class AMT:
             'AssignmentId'      : assignmentId,
             'RequesterFeedback' : requesterFeedback,
         }
-        return self.request('ApproveAssignment', parameters).valid
+        return self.request('ApproveAssignment', parameters)[0].valid
 
     def rejectAssignment(self, assignmentId, requesterFeedback = None):
         parameters = {
             'AssignmentId'      : assignmentId,
             'RequesterFeedback' : requesterFeedback,
         }
-        return self.request('RejectAssignment', parameters).valid
+        return self.request('RejectAssignment', parameters)[0].valid
 
     def getHIT(self, id, responseGroup : flags.responseGroup = None):
-        r = self.request('GetHIT', {'HITId' : id, 'ResponseGroup' : responseGroup})
+        r = self.request('GetHIT', {'HITId' : id, 'ResponseGroup' : responseGroup})[0]
         return r.result
 
     def _answerDictConstructor(self, answerString):
@@ -326,7 +378,7 @@ class AMT:
         returnList = []
         idSet = set()
         while True:
-            r = self.request(operation, param)
+            r = self.request(operation, param)[0]
             if not r.valid:
                 return
             if int(r['NumResults']) == 0:
@@ -344,7 +396,7 @@ class AMT:
 
     def _setHITAsReviewing(self, id, revert):
         '''Don't use this function directly. Use toReviewing()/toReviewable()'''
-        r = self.request('SetHITAsReviewing', {'HITId' : id, 'Revert' : revert})
+        r = self.request('SetHITAsReviewing', {'HITId' : id, 'Revert' : revert})[0]
         return r.valid
 
 
