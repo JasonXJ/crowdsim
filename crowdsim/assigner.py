@@ -63,6 +63,24 @@ class SimpleAssigner(BaseAssigner):
             del self.inactive_task_to_assignInfo[task]
         self.task_to_assignInfo[task].abandon(workerId)
 
+class SimpleAssigner2(BaseAssigner):
+    def __init__(self, duplicate = 1):
+        self.duplicate = duplicate
+        pass
+    def link(self, generator):
+        self.generator = generator
+        it = iter(generator)
+    def assign2(self):
+        try:
+            task = next(it)
+        except StopIteration:
+            raise RunOutOfAllTask
+        return AnonymousAssignment(task, self.duplicate)
+    def update(self, workerId, task, label):
+        pass
+
+
+
 from . import crowdscreen
 class BaseStrategyAssigner(BaseAssigner):
     def __init__(self, strategyGrid):
