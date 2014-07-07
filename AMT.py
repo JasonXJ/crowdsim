@@ -114,12 +114,12 @@ class AMT:
         if r.valid:
             return float(r['AvailableBalance/Amount'])
 
-    def createHIT(self, createHITParameters):
-        """CreateHIT based on createHITParameters, which should be of type "CreateHITParameters"
+    def createHIT(self, HITParameters):
+        """CreateHIT based on HITParameters, which should be of type "HITParameters"
         
         return (HITId, HITTypeId) or None"""
         self.HITAlreadyExists = False
-        r, multipleRequest = self.request('CreateHIT', createHITParameters.parameters, addUuid = True)
+        r, multipleRequest = self.request('CreateHIT', HITParameters.parameters, addUuid = True)
         if r.valid:
             return (r['HITId'], r['HITTypeId'])
         elif multipleRequest:
@@ -438,7 +438,7 @@ class AMTRespond:
     def locateRoot(self, path):
         return self._locate(self.root, path)
 
-class CreateHITParameters:
+class HITParameters:
     def __init__(self, lifetimeInSeconds, useTypeId = True, useLayoutId = True, maxAssignments = None, assignmentReviewPolicy = None, HITReviewPolicy = None, requesterAnnotation = None, uniqueRequestToken = None):
         self.parameters = {
             'LifetimeInSeconds'      : lifetimeInSeconds,
