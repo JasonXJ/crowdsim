@@ -281,7 +281,8 @@ class AMT:
 
     def getHIT(self, id, responseGroup : flags.responseGroup = None):
         r = self.request('GetHIT', {'HITId' : id, 'ResponseGroup' : responseGroup})[0]
-        return r.result
+        if r.valid:
+            return r.result
 
     def _answerDictConstructor(self, answerString):
         '''Construct a dict represent the answer based on the xml answerString
