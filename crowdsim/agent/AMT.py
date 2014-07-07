@@ -11,8 +11,6 @@ import xml.parsers.expat.errors as xmlErrors
 from xml.parsers.expat import ExpatError
 import uuid
 
-DEBUG = False
-
 sPrice = namedtuple('sPrice', 'Amount, CurrencyCode')
 sHITLayoutParameter = namedtuple('sHITLayoutParameter', 'Name, Value')
 
@@ -59,7 +57,8 @@ class flags:
         #approvedOrRejected = [Approved,Rejected]
 
 class AMT:
-    def __init__(self, keyId, secret, useSandbox = True, verify = True, timeout = 5.0, tries = 5, uuidGenerator = uuid.uuid1):
+    def __init__(self, keyId, secret, useSandbox = True, verify = True, timeout
+            = 5.0, tries = 5, uuidGenerator = uuid.uuid1, debug = False):
         '''Init...
 
         `timeout` will be passed to requests.post() and `tries` indicate
@@ -74,6 +73,7 @@ class AMT:
         self.timeout = timeout
         self.tries = tries
         self.uuidGenerator = lambda : str(uuidGenerator())
+        self.debug = debug
         if useSandbox:
             self.service_url='https://mechanicalturk.sandbox.amazonaws.com/'
         else:
@@ -110,7 +110,7 @@ class AMT:
                 logging.warning('Requests timeout: #{}'.format(tryTimes + 1))
                 continue
             break
-        if DEBUG:
+        if self.debug:
             logging.debug('request url: ' + request.url)
             logging.debug('respond text:\n' + minidom.parseString(request.text).toprettyxml())
         self.respondCache = AMTRespond(request.text)
