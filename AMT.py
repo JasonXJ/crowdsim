@@ -16,6 +16,13 @@ DEBUG = False
 sPrice = namedtuple('sPrice', 'Amount, CurrencyCode')
 sHITLayoutParameter = namedtuple('sHITLayoutParameter', 'Name, Value')
 
+class TimeUnit:
+    minute = 60
+    hour = 60 * minute
+    day = 24 * hour
+    week = 7 * day
+    month = 30 * day
+
 class flags:
     class sortProperty:
         title = 'Title'
