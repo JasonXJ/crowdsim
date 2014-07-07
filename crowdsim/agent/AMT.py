@@ -42,9 +42,9 @@ class flags:
     class responseGroup:
         request = 'Request'
         minimal = 'Minimal'
-        hITDetail = 'HITDetail'
-        hITQuestion = 'HITQuestion'
-        hITAssignmentSummary = 'HITAssignmentSummary'
+        hitDetail = 'HITDetail'
+        hitQuestion = 'HITQuestion'
+        hitAssignmentSummary = 'HITAssignmentSummary'
         parameters = 'Parameters'
         assignmentFeedback = 'AssignmentFeedback'
 
