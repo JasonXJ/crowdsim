@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from . import common, generator, deducer, assigner, workerPool
+from . import common, generator, deducer, assigner, workerpool
 
 
 def linkAll(generator = None, assigner = None, workerPool = None, deducer = None):
