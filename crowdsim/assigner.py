@@ -69,10 +69,10 @@ class SimpleAssigner2(BaseAssigner):
         pass
     def link(self, generator):
         self.generator = generator
-        it = iter(generator)
+        self.it = iter(generator)
     def assign2(self):
         try:
-            task = next(it)
+            task = next(self.it)
         except StopIteration:
             raise RunOutOfAllTask
         return AnonymousAssignment(task, self.duplicate)
@@ -83,8 +83,13 @@ class SimpleAssigner2(BaseAssigner):
 
 from . import crowdscreen
 class BaseStrategyAssigner(BaseAssigner):
-    def __init__(self, strategyGrid):
-        self.strategyGrid = strategyGrid
+    def __init__(self, t = None, m = None, s = None, e0 = None, e1 = None, strategyGrid = None):
+        '''If strategyGrid is given, other parameters are ignored'''
+        if strategyGrid:
+            self.strategyGrid = strategyGrid
+        else:
+            self.strategy = crowdscreen.getBestLadderStrategy(t, m, s, e0, e1)
+            self.strategyGrid = self.strategy.grid()
         if self.strategyGrid[0][0] == crowdscreen.PASS or self.strategyGrid[0][0] == crowdscreen.FAIL:
             raise StrategyStopAtOrigin(self.strategyGrid[0][0])
         self.stepsToNearestTermPoint = crowdscreen.calcStepsToNearestTermPoint(strategyGrid)
@@ -206,4 +211,3 @@ class StrategyAssigner2(BaseStrategyAssigner):
         yes, no, active = self.task_to_yes_no_active[task]
         steps = self.stepsToNearestTermPoint[no][yes]
         return steps - active
-
