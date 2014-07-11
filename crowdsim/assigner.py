@@ -83,16 +83,28 @@ class SimpleAssigner2(BaseAssigner):
 
 from . import crowdscreen
 class BaseStrategyAssigner(BaseAssigner):
-    def __init__(self, t = None, m = None, s = None, e0 = None, e1 = None, strategyGrid = None):
+    def __init__(self, t = None, m = None, s = None, e0 = None, e1 = None, strategyGrid = None, verbose = False):
         '''If strategyGrid is given, other parameters are ignored'''
         if strategyGrid:
+            self.strategy = None
             self.strategyGrid = strategyGrid
         else:
             self.strategy = crowdscreen.getBestLadderStrategy(t, m, s, e0, e1)
-            self.strategyGrid = self.strategy.grid()
+            self.strategyGrid = self.strategy.grid
         if self.strategyGrid[0][0] == crowdscreen.PASS or self.strategyGrid[0][0] == crowdscreen.FAIL:
             raise StrategyStopAtOrigin(self.strategyGrid[0][0])
-        self.stepsToNearestTermPoint = crowdscreen.calcStepsToNearestTermPoint(strategyGrid)
+        self.stepsToNearestTermPoint = crowdscreen.calcStepsToNearestTermPoint(self.strategyGrid)
+
+        if verbose:
+            print('==========Strategy grid=================')
+            if self.strategy:
+                crowdscreen.printStrategy(self.strategy)
+            else:
+                crowdscreen.printGrid(self.strategyGrid)
+            print('==========Steps grid====================')
+            crowdscreen.printGrid(self.stepsToNearestTermPoint)
+            print('========================================')
+
 
     def link(self, generator):
         self.generator = generator
