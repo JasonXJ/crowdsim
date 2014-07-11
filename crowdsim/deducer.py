@@ -18,7 +18,7 @@ class MajorityVote(BaseDeducer):
     def __iter__(self):
         return iter(self.answerList)
 
-class passer(BaseDeducer):
+class Passer(BaseDeducer):
     """This deducer do nothing but pass the results directly. It is used when
     we do not need to deduce answers from workerpool or the assigner do the
     deducing work by itself."""
