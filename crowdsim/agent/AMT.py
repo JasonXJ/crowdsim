@@ -187,7 +187,7 @@ class AMT:
     def getAssignmentsForHIT(self, id, assignmentStatus :
             flags.assignmentStatus = None, sortProperty : flags.sortProperty =
             None, sortDirection : flags.sortDirection = None, pageSize = None,
-            pageNumber = None):
+            pageNumber = None, responseGroup : flags.responseGroup = None):
         '''Retrieve and return a deduplicated list of tuples (assignmentId, answerList, assignment)
 
         The `assignment` is an xml elements and the `answerList` is list of dicts which is
@@ -202,6 +202,7 @@ class AMT:
             'SortDirection'    : sortDirection,
             'PageSize'         : pageSize,
             'PageNumber'       : pageNumber,
+            'ResponseGroup'    : responseGroup,
         }
         
         def constructTuple(id, element):
