@@ -96,5 +96,5 @@ class amt(BaseWorkerPool):
             if updated:
                 logging.info('Finish updating (total answer count = {})'.format(len(self.answerList)))
                 break
-            logging.info('Fail to update (total answer count = {}): sleep for {} seconds'.format(self.sleepTime))
+            logging.info('Fail to update (total answer count = {}): sleep for {} seconds'.format(len(self.answerList), self.sleepTime))
             time.sleep(self.sleepTime)
