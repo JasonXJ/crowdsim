@@ -121,14 +121,16 @@ class AMT:
         if r.valid:
             return float(r['AvailableBalance/Amount'])
 
-    def createHIT(self, HITParameters):
+    def createHIT(self, HITParameters, responseGroup : flags.responseGroup = None):
         """CreateHIT based on HITParameters, which should be of type "HITParameters"
         
-        return (HITId, HITTypeId) or None"""
+        return (HITId, HITTypeId, HITXmlElement) or None"""
+        params = HITParameters.parameters.copy()
+        params['ResponseGroup'] = responseGroup
         self.HITAlreadyExists = False
-        r, multipleRequest = self.request('CreateHIT', HITParameters.parameters, addUuid = True)
+        r, multipleRequest = self.request('CreateHIT', params, addUuid = True)
         if r.valid:
-            return (r['HITId'], r['HITTypeId'])
+            return (r['HITId'], r['HITTypeId'], r.result)
         elif multipleRequest:
             code = self.respondCache.result.findtext('Request/Errors/Error/Code')
             if code == "AWS.MechanicalTurk.HITAlreadyExists":
@@ -144,11 +146,11 @@ class AMT:
                             break
                 else:
                     raise RuntimeError('Cannot get HITId')
-                r = self.getHIT(hitId, responseGroup = flags.responseGroup.minimal)
+                r = self.getHIT(hitId, responseGroup = responseGroup)
                 typeId = r.findtext('HITTypeId')
                 if typeId is None:
                     raise RuntimeError('Cannot get HITTypeId')
-                return (hitId, typeId)
+                return (hitId, typeId, r)
 
     def registerHITType(self, title, description, rewardAmount, assignmentDurationInSeconds, keywords = None, autoApprovalDelayInSeconds = None, qualificationRequirement = None):
         parameters = {
