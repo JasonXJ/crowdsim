@@ -186,9 +186,9 @@ class AMT:
             flags.assignmentStatus = None, sortProperty : flags.sortProperty =
             None, sortDirection : flags.sortDirection = None, pageSize = None,
             pageNumber = None):
-        '''Retrieve and return a deduplicated list of tuples (assignmentId, answer, assignment)
+        '''Retrieve and return a deduplicated list of tuples (assignmentId, answerList, assignment)
 
-        The `assignment` is an xml elements and the `answer` is a dict which is
+        The `assignment` is an xml elements and the `answerList` is list of dicts which is
         extracted by self._answerDictConstructor()
         
         see _getPages() for more help'''
@@ -204,10 +204,10 @@ class AMT:
         
         def constructTuple(id, element):
             answerString = element.findtext('Answer')
-            answer = None
+            answerList = []
             if answerString is not None:
-                answer = self._answerDictConstructor(answerString)
-            return (id, answer, element)
+                answerList = self._answerDictConstructor(answerString)
+            return (id, answerList, element)
 
         return self._getPages('GetAssignmentsForHIT', parameters, lambda r :
                 r.findall('Assignment'), lambda e : e.findtext('AssignmentId'),
@@ -287,11 +287,10 @@ class AMT:
     def _answerDictConstructor(self, answerString):
         '''Construct a dict represent the answer based on the xml answerString
 
-        This function parse the xml and return a dict based on the xsd
+        This function parse the xml and return a list of dicts based on the xsd
         (http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2005-10-01/QuestionFormAnswers.xsd).
-        except that it assumes there is exactly one 'Answer' element.
 
-        If no element found in answerString, it returns None.'''
+        If no element found in answerString, it returns [].'''
 
         namespaces = {'http://mechanicalturk.amazonaws.com/'\
                 'AWSMechanicalTurkDataSchemas/2005-10-01/QuestionFormAnswers.xsd' : None}
@@ -303,18 +302,17 @@ class AMT:
             d = xmltodict.parse(answerString, namespaces = namespaces, dict_constructor=dict)
         except ExpatError as err:
             if xmlErrors.messages[err.code] == xmlErrors.XML_ERROR_NO_ELEMENTS:
-                return
+                return []
             raise
 
-        self.origind = d
-        d = d['QuestionFormAnswers']['Answer']
-        if isinstance(d, list):
-            raise RuntimeError('Multiple "answer" elements!')
-        if 'SelectionIdentifier' in d and not isinstance(d['SelectionIdentifier'], list):
-            # This element can appear multiple times. Make sure it is always a
-            # list.
-            d['SelectionIdentifier'] = [d['SelectionIdentifier']]
-        return d
+        answerList = d['QuestionFormAnswers']['Answer']
+        if not isinstance(answerList, list):
+            # make sure it is a list
+            answerList = [answerList]
+        for answer in answerList:
+            if 'SelectionIdentifier' in answer and not isinstance(answer['SelectionIdentifier'], list):
+                answer['SelectionIdentifier'] = [answer['SelectionIdentifier']]
+        return answerList
 
     def _generateSignature(self, parameters):
         msg = parameters['Service'] + parameters['Operation'] + parameters['Timestamp']
