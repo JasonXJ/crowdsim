@@ -7,10 +7,14 @@ import time
 # FIXME: fix all docstring
 
 class amt(BaseWorkerPool):
-    def __init__(self, amtAgent, HITParameterConstructor, answerConstructor):
+    def __init__(self, amtAgent, HITParameterConstructor, answerConstructor,
+            responseGroup_createHIT = None,
+            responseGroup_getAssignmentsForHIT = None):
         self.agent = amtAgent
         self.HPConstructor = HITParameterConstructor
         self.answerConstructor = answerConstructor
+        self.rg_createHIT = responseGroup_createHIT
+        self.rg_getAssignmentsForHIT = responseGroup_getAssignmentsForHIT
         self.extendTime = 1 * tu.day
         self.sleepTime = 5 * tu.minute
 
@@ -57,10 +61,12 @@ class amt(BaseWorkerPool):
                     logging.info('Creating HIT: task.id = {} assignments = {}'.format(aa.task.id, aa.duplicate))
                     hitInfo = {}
                     hp = self.HPConstructor(aa)
-                    hitInfo['id'] = self._agentWrapper('createHIT', hp)[0]
+                    response = self._agentWrapper('createHIT', hp, responseGroup = self.rg_createHIT)
+                    hitInfo['id'] = response[0]
                     hitInfo['task'] = aa.task
                     hitInfo['duplicate'] = aa.duplicate
                     hitInfo['answerCount'] = 0
+                    hitInfo['HITElement'] = response[2]
 
                     self.task2hitInfo[aa.task] = hitInfo
                     self.hitId2info[hitInfo['id']] = hitInfo
@@ -76,12 +82,13 @@ class amt(BaseWorkerPool):
                 # XXX: set the hit to reviewing
                 hitInfo = self.hitId2info[id]
                 if hitInfo['answerCount'] != hitInfo['duplicate']:
-                    assignments = self._agentWrapper('getAssignmentsForHIT', id)
+                    assignments = self._agentWrapper('getAssignmentsForHIT',
+                            id, responseGroup = self.rg_getAssignmentsForHIT)
                     for ass in assignments:
                         if ass[0] not in self.assignmentIds:
                             self.assignmentIds.add(ass[0])
                             updated = True
-                            answer = self.answerConstructor(hitInfo['task'], ass)
+                            answer = self.answerConstructor(hitInfo, ass)
                             self.answerList.append(answer)
                             hitInfo['answerCount'] += 1
 
