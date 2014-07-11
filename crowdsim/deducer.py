@@ -18,11 +18,22 @@ class MajorityVote(BaseDeducer):
     def __iter__(self):
         return iter(self.answerList)
 
-class assignerDeducer(BaseDeducer):
-    """Use when the assigner deduces true answer by itself."""
+class passer(BaseDeducer):
+    """This deducer do nothing but pass the results directly. It is used when
+    we do not need to deduce answers from workerpool or the assigner do the
+    deducing work by itself."""
+    def __init__(self, source = 'worker'):
+        """source can be "worker" or "deducer" """
+        self.source = source
+        if source not in ['worker', 'deducer']:
+            raise ValueError('Unsupported source value ("{}")'.format(source))
+
     def link(self, workerPool):
         self.workerPool = workerPool
-        self.answerList = workerPool.assigner.answerList
+        if self.source == 'worker':
+            self.answerList = workerPool.answerList
+        else:
+            self.answerList = workerPool.assigner.answerList
     def __iter__(self):
         return iter(self.answerList)
 
