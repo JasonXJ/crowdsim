@@ -22,15 +22,15 @@ class Passer(BaseDeducer):
     """This deducer do nothing but pass the results directly. It is used when
     we do not need to deduce answers from workerpool or the assigner do the
     deducing work by itself."""
-    def __init__(self, source = 'worker'):
-        """source can be "worker" or "deducer" """
+    def __init__(self, source = 'workerpool'):
+        """source can be "workerpool" or "assigner" """
         self.source = source
-        if source not in ['worker', 'deducer']:
+        if source not in ['workerpool', 'assigner']:
             raise ValueError('Unsupported source value ("{}")'.format(source))
 
     def link(self, workerPool):
         self.workerPool = workerPool
-        if self.source == 'worker':
+        if self.source == 'workerpool':
             self.answerList = workerPool.answerList
         else:
             self.answerList = workerPool.assigner.answerList
