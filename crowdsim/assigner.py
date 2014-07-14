@@ -142,6 +142,7 @@ class StrategyAssigner(BaseStrategyAssigner):
         if label == 0:
             no += 1
         else:
+            assert(label == 1)
             yes += 1
 
         state = self.strategyGrid[no][yes] 
@@ -202,6 +203,7 @@ class StrategyAssigner2(BaseStrategyAssigner):
         if label == 0:
             no += 1
         else:
+            assert(label == 1)
             yes += 1
         state = self.strategyGrid[no][yes]
         if state == crowdscreen.UNREACHABLE:
