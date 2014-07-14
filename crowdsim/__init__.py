@@ -31,7 +31,7 @@ def evaluate(answers, detectDuplicate = False):
         totalCount += 1
         if a.label == a.task.trueLabel:
             count += 1
-    return count / totalCount
+    return _mydiv(count, totalCount)
 
 def getConfusionMatrix(answers, detectDuplicate = False):
     """evaluate the answers and return confusion matrix
@@ -60,8 +60,12 @@ def getConfusionMatrix(answers, detectDuplicate = False):
 
 def getBinaryTaskMetrics(confusionMatrix):
     assert(len(confusionMatrix) == 2)
-    precision = confusionMatrix[1][1] / (confusionMatrix[1][1] + confusionMatrix[0][1])
-    recall = confusionMatrix[1][1] / (confusionMatrix[1][1] + confusionMatrix[1][0])
-    f1 = 2*precision*recall / (precision + recall)
-    accuracy = (confusionMatrix[0][0] + confusionMatrix[1][1]) / (confusionMatrix[0][0] + confusionMatrix[0][1] + confusionMatrix[1][0] + confusionMatrix[1][1])
+    precision = _mydiv(confusionMatrix[1][1], (confusionMatrix[1][1] + confusionMatrix[0][1]))
+    recall = _mydiv(confusionMatrix[1][1], (confusionMatrix[1][1] + confusionMatrix[1][0]))
+    f1 = _mydiv(2*precision*recall, (precision + recall))
+    accuracy = _mydiv((confusionMatrix[0][0] + confusionMatrix[1][1]), (confusionMatrix[0][0] + confusionMatrix[0][1] + confusionMatrix[1][0] + confusionMatrix[1][1]))
     return common.BinaryTaskMetrics(precision, recall, f1, accuracy)
+
+def _mydiv(a, b):
+    '''return 0 if b == 0 else a / b'''
+    return 0 if b == 0 else a / b
