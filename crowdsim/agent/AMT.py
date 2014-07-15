@@ -4,12 +4,10 @@ import time, hmac, hashlib, base64
 import requests
 import xml.etree.ElementTree as et
 from collections import namedtuple
-import logging
-import xmltodict
 import xml.dom.minidom as minidom
 import xml.parsers.expat.errors as xmlErrors
 from xml.parsers.expat import ExpatError
-import uuid
+import uuid, logging, re
 
 sPrice = namedtuple('sPrice', 'Amount, CurrencyCode')
 sHITLayoutParameter = namedtuple('sHITLayoutParameter', 'Name, Value')
@@ -188,12 +186,12 @@ class AMT:
             flags.assignmentStatus = None, sortProperty : flags.sortProperty =
             None, sortDirection : flags.sortDirection = None, pageSize = None,
             pageNumber = None, responseGroup : flags.responseGroup = None):
-        '''Retrieve and return a deduplicated list of tuples (assignmentId, answerList, assignment)
+        '''Retrieve and return a deduplicated list of tuples (assignmentId, answerDict, assignment)
 
-        The `assignment` is an xml elements and the `answerList` is list of dicts which is
+        The `assignment` is an xml elements and the `answerDict` is a dict
         extracted by self._answerDictConstructor()
         
-        see _getPages() for more help'''
+        see _getPages() and _answerDictConstructor() for more help'''
 
         parameters = {
             'HITId'            : id,
@@ -288,34 +286,42 @@ class AMT:
             return r.result
 
     def _answerDictConstructor(self, answerString):
-        '''Construct a dict represent the answer based on the xml answerString
+        '''Construct a dict representing the answer based on the answerString(should be an xml string)
 
-        This function parse the xml and return a list of dicts based on the xsd
-        (http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2005-10-01/QuestionFormAnswers.xsd).
+        This function parse the xml and return a dict.
+        The keys of the returned dict is the QuestionIdentifier and the items
+        are dicts. An example of the returned value is as follows (the value
+        corresponding to the key 'SelectionIdentifier' is always a list):
+        {'Q1Answer': {'FreeText': 'yes'},
+         'Q2Answer': {'SelectionIdentifier' : ['...']} }
+        
+        This function ignores the namespace.
 
-        If no element found in answerString, it returns [].'''
+        If no element found in answerString, it returns {}.'''
 
-        namespaces = {'http://mechanicalturk.amazonaws.com/'\
-                'AWSMechanicalTurkDataSchemas/2005-10-01/QuestionFormAnswers.xsd' : None}
-        # TODO: the 0.9.0 version of xmltodict cannot deal with namespaces
-        # correctly. While this function works correctly now, the lack of
-        # namespaces support may suppress some errors. Check xmltodict when the
-        # new version is published.
+        ns = 'xmlns="http://mechanicalturk.amazonaws.com/AWSMechanicalTurkDataSchemas/2005-10-01/QuestionFormAnswers.xsd"'
+        answerString = answerString.replace(ns, '')
         try:
-            d = xmltodict.parse(answerString, namespaces = namespaces, dict_constructor=dict)
-        except ExpatError as err:
+            root = et.fromstring(answerString)
+        except et.ParseError as err:
             if xmlErrors.messages[err.code] == xmlErrors.XML_ERROR_NO_ELEMENTS:
-                return []
+                return {}
             raise
+        assert(root.tag == 'QuestionFormAnswers')
 
-        answerList = d['QuestionFormAnswers']['Answer']
-        if not isinstance(answerList, list):
-            # make sure it is a list
-            answerList = [answerList]
-        for answer in answerList:
-            if 'SelectionIdentifier' in answer and not isinstance(answer['SelectionIdentifier'], list):
-                answer['SelectionIdentifier'] = [answer['SelectionIdentifier']]
-        return answerList
+        d = {}
+        for answer in root.iterfind('Answer'):
+            data = {}
+            for child in answer:
+                if child.tag == 'QuestionIdentifier':
+                    qId = child.text
+                elif child.tag == 'SelectionIdentifier':
+                    data.setdefault(child.tag, []).append(child.text)
+                else:
+                    data[child.tag] = child.text
+            d[qId] = data
+
+        return d
 
     def _generateSignature(self, parameters):
         msg = parameters['Service'] + parameters['Operation'] + parameters['Timestamp']
