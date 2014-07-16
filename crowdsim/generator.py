@@ -12,15 +12,24 @@ class GeneralGenerator(BaseGenerator):
 
         Parameter:
             taskCount: number of task to generate
-            labelCount: can be a callable/iterable object or just an int
-            trueLabel: Can be None, callable/iterable object or int. If is None, the trueLabels are assigned randomly.
+
+            labelCount: can be a callable/iterable object ,an int or None(the
+            task do not has labels). If is None, trueLabel will always be None.
+
+            trueLabel: Can be None, callable/iterable object or int. If is
+            None, the trueLabels are assigned randomly if labelCount is not
+            None.
         """
         self.taskCount = taskCount
-        self.labelCountGenerator = toCallable(labelCount)
-        if trueLabel is None:
-            self.trueLabelGenerator = self.defaultTrueLabelGenerator
+        if labelCount is not None:
+            self.labelCountGenerator = toCallable(labelCount)
+            if trueLabel is None:
+                self.trueLabelGenerator = self.defaultTrueLabelGenerator
+            else:
+                self.trueLabelGenerator = toCallable(trueLabel)
         else:
-            self.trueLabelGenerator = toCallable(trueLabel)
+            self.labelCountGenerator = lambda x : None
+            self.trueLabelGenerator = lambda x : None
 
         self.id_to_task = []
         self.taskList = self.id_to_task
